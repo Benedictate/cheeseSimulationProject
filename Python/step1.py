@@ -4,7 +4,7 @@ import random
 # --- Simulation Constants ---
 TOTAL_MILK = 1000  # Total milk to process (liters)
 FLOW_RATE_PER_STEP = 41.7  # Liters per 15 seconds
-TEMP_RANGE_VARIATION = (-3, 3)  # Random fluctuation range per step
+TEMP_RANGE_VARIATION = (-2, 2)  # Random fluctuation range per step
 
 # --- Temperature Thresholds (°C) ---
 TEMP_MIN_OPERATING = 68 #lowest temperature at which the machine would draw milk in
@@ -53,7 +53,7 @@ def htst_process(env, total_milk, flow_per_step, initial_temp):
     cooling_due_to_overheat = False
 
     # Header
-    print(f"{'Time':<8} {'Start Tank':<14} {'Balance Tank':<14} {'Pasteurized':<14} {'Burnt':<14} {'Temp (°C)':<10} Status")
+    print(f"{'Time':<8} {'Start Tank (L)':<14} {'Balance Tank (L)':<14} {'Pasteurized (L)':<14} {'Burnt (L)':<14} {'Temp (°C)':<10} Status")
     print("-" * 95)
 
     # --- Startup Phase ---
