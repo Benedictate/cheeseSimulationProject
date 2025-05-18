@@ -2,38 +2,38 @@ import simpy
 import math
 
 # Constants
-initial_curd_kg = 10
-moisture_difference = 30
-final_moisture = 45  # from 75% to 45%
-decay_rate_before_milling = -0.02
-decay_rate_after_milling = -0.025
-milling_start_time = 90
-steepness_of_sigmoid = -0.05
-max_texture_value = 10
-total_time_of_process=180
+INITIAL_CURD_KG = 10
+MOISTURE_DIFFERENCE = 30
+MOISTURE_FINAL = 45  # from 75% to 45%
+DECAY_RATE_PRE_MILL = -0.02
+DECAY_RATE_POST_MILL = -0.025
+MILL_START_TIME = 90
+SIGMOID_STEEPNESS = -0.05
+MAXIMUM_TEXTURE = 10
+TOTAL_PROCESS_TIME=180
 
 # Functions for moisture and texture
 def calculate_moisture(t):
-    if t < milling_start_time:
-        return moisture_difference * math.exp(decay_rate_before_milling * t) + final_moisture
+    if t < MILL_START_TIME:
+        return MOISTURE_DIFFERENCE * math.exp(DECAY_RATE_PRE_MILL * t) + MOISTURE_FINAL
     else:
-        return moisture_difference * math.exp(decay_rate_after_milling * (t - milling_start_time)) + final_moisture
+        return MOISTURE_DIFFERENCE * math.exp(DECAY_RATE_POST_MILL * (t - MILL_START_TIME)) + MOISTURE_FINAL
 
 def calculate_texture(t):
-    return max_texture_value / (1 + math.exp(steepness_of_sigmoid * (t - milling_start_time)))
+    return MAXIMUM_TEXTURE / (1 + math.exp(SIGMOID_STEEPNESS * (t - MILL_START_TIME)))
 
-def cheddaring_process(env):
-    print(f"Starting curd: {initial_curd_kg:.2f} kg\n")
+def cheddaring_process(env, initial_curd_amount, milling_startup, process_time):
+    print(f"Starting curd: {initial_curd_amount:.2f} kg\n")
     print("-" * 80)
     print(f"{'Time (min)':<12} {'Moisture (%)':<15} {'Whey Lost (kg)':<20} {'Texture (0–10)':<18} {'Milled?'}")
     print("-" * 80)
 
-    while env.now <= total_time_of_process:
+    while env.now <= process_time:
         t = env.now
-        milled = t >= milling_start_time
+        milled = t >= milling_startup
 
         moisture = calculate_moisture(t)
-        whey_kg = ((100 - moisture) / 100) * initial_curd_kg
+        whey_kg = ((100 - moisture) / 100) * initial_curd_amount
         texture = calculate_texture(t)
 
         print(f"{t:<12} {moisture:<15.2f} {whey_kg:<20.2f} {texture:<18.2f} {'Yes' if milled else 'No'}")
@@ -42,5 +42,5 @@ def cheddaring_process(env):
 
 # Run simulation
 env = simpy.Environment()
-env.process(cheddaring_process(env))
+env.process(cheddaring_process(env, INITIAL_CURD_KG, MILL_START_TIME, TOTAL_PROCESS_TIME))
 env.run()
