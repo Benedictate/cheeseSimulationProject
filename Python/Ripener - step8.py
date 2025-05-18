@@ -1,5 +1,5 @@
 import simpy
-import random
+from datetime import datetime as dt
 
 # --- Simulation Constants ---
 TOTAL_CHEESE = 108  # Total cheese to process (kilograms)
@@ -38,8 +38,8 @@ def ripening_process(env, incoming_blocks, initial_temp):
     status = "Adding pressed cheeses to shelves..."
 
     # Header
-    print(f"{'Time':<8} {'Intake (KG)':<14} {'Ripening (KG)':<14}{'Temp (°C)':<10} Status")
-    print("-" * 65)
+    print(f"{'Time':<8}                   {'Intake (KG)':<14} {'Ripening (KG)':<14}{'Temp (°C)':<10} Status")
+    print("-" * 95)
 
     # --- Processing Loop ---
     while (intake > 0) and (ripening < TOTAL_CHEESE):
@@ -50,7 +50,7 @@ def ripening_process(env, incoming_blocks, initial_temp):
         ripening += INTAKE_PER_STEP
 
 
-        print(f"{format_sim_time(env.now):<8} {intake:<14.2f} {ripening:<14.2f} {temperature:<10.2f} {status}")
+        print(f"{dt.now()} {intake:<14.2f} {ripening:<14.2f} {temperature:<10.2f} {status}")
 
 
     # --- Final Report ---
