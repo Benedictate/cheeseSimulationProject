@@ -28,12 +28,12 @@ def cheddaring_process(env, initial_curd_amount, milling_startup, process_time):
     print(f"{'Time (min)':<12} {'Moisture (%)':<15} {'Whey Lost (kg)':<20} {'Texture (0–10)':<18} {'Milled?'}")
     print("-" * 80)
 
-    while env.now <= total_time_of_process:
+    while env.now <= process_time:
         t = env.now
-        milled = t >= milling_start_time
+        milled = t >= milling_startup
 
         moisture = calculate_moisture(t)
-        whey_kg = ((100 - moisture) / 100) * initial_curd_kg
+        whey_kg = ((100 - moisture) / 100) * initial_curd_amount
         texture = calculate_texture(t)
 
             print(f"{t:<12} {moisture:<15.2f} {whey_kg:<20.2f} {texture:<18.2f} {'Yes' if milled else 'No'}")
@@ -42,5 +42,5 @@ def cheddaring_process(env, initial_curd_amount, milling_startup, process_time):
 
 # Run simulation
 env = simpy.Environment()
-env.process(cheddaring_process(env))
+env.process(cheddaring_process(env, INITIAL_CURD_KG, MILL_START_TIME, TOTAL_PROCESS_TIME))
 env.run()
