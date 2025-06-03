@@ -17,28 +17,10 @@ TEMP_COOKING = 39.00  # Target temperature for cooking
 INITIAL_PH = 6.70  # Starting pH
 OPTIMAL_PH = 6.55  # Optimal pH for rennet
 
-# --- Time Durations (minutes) ---
-HEATING_DURATION = 60  # 1 hour for heating milk
-RENNET_DOSING_DURATION = 2  # 2 minutes for rennet dosing
-RENNET_STIRRING_DURATION = 5  # 5 minutes for gentle stirring
-COAGULATION_DURATION = 45  # 45 minutes for coagulation
-NORMAL_CUTTING_DURATION = 10  # 10 minutes for normal cutting
-EXTENDED_CUTTING_DURATION = 20  # Extended cutting time with issues
-STIRRING_COOKING_DURATION = 20  # 20 minutes for cooking to reach optimal temperature
-STIRRING_STIRING_DURATION = 30  # 30 minutes for stirring at optimal temperature
-WHEY_RELEASE_DURATION = 20  # 20 minutes for whey release
-
-# --- Step Calculations ---
-STEPS_PER_MIN = 60 // STEP_DURATION_SEC  # Steps per minute
-STEPS_HEATING = HEATING_DURATION * STEPS_PER_MIN
-STEPS_RENNET_DOSING = RENNET_DOSING_DURATION * STEPS_PER_MIN
-STEPS_RENNET_STIRRING = RENNET_STIRRING_DURATION * STEPS_PER_MIN
-STEPS_COAGULATION = COAGULATION_DURATION * STEPS_PER_MIN
-STEPS_NORMAL_CUTTING = NORMAL_CUTTING_DURATION * STEPS_PER_MIN
-STEPS_EXTENDED_CUTTING = EXTENDED_CUTTING_DURATION * STEPS_PER_MIN
-STEPS_STIRRING_COOKING = STIRRING_COOKING_DURATION * STEPS_PER_MIN
-STEPS_STIRRING = STIRRING_STIRING_DURATION * STEPS_PER_MIN
-STEPS_WHEY_RELEASE = WHEY_RELEASE_DURATION * STEPS_PER_MIN
+# --- Base Rates (per 15-second step) ---
+BASE_MILK_CONVERSION_RATE = 0.02  # Base rate of milk conversion per step
+BASE_WHEY_RELEASE_RATE = 0.02  # Base rate of whey release during cutting/stirring
+BASE_WHEY_DRAIN_RATE = 0.05  # Base rate of whey draining per step
 
 # --- Conversion Rates (Industry Standards) ---
 MILK_TO_CURD_NORMAL = 0.12  # 12% milk to curd conversion rate (industry standard)
@@ -55,6 +37,9 @@ ANOMALY_WEIGHTS = {
     "stirring": 2,
     "whey_release": 2
 }
+
+# --- Safety Limits (to prevent infinite loops) ---
+MAX_STEPS_PER_PHASE = 1000  # Maximum steps per phase
 
 
 def format_sim_time(sim_time):
@@ -132,7 +117,7 @@ def cheese_vat_process(env, anomaly_probability=DEFAULT_ANOMALY_PROBABILITY):
     # Calculate first milk addition
     pending_changes["milk"] = MILK_PER_STEP
     
-    # Simulate filling
+    # Simulate filling - continue until vat is full
     while milk_amount < TOTAL_MILK:
         # Apply pending changes from previous step
         milk_amount += pending_changes["milk"]
@@ -166,24 +151,25 @@ def cheese_vat_process(env, anomaly_probability=DEFAULT_ANOMALY_PROBABILITY):
         # Normal temperature range
         target_temp = round(random.uniform(TEMP_OPTIMAL_MIN, TEMP_OPTIMAL_MAX), 1)
     
-    # Simulate heating with data at every 15-second interval
-    temp_step = (target_temp - temperature) / STEPS_HEATING
+    # Simulate heating - continue until target temperature is reached
+    temp_step = (target_temp - temperature) / 60  # Aim to reach target in ~15 minutes
     
-    for step in range(STEPS_HEATING):
+    while abs(temperature - target_temp) > 0.1:  # Continue until we're very close to target
         # Apply pending changes from previous step
         temperature += pending_changes["temp"]
         pending_changes["temp"] = 0
         
         # Calculate next temperature change
-        pending_changes["temp"] = temp_step
+        if temperature < target_temp:
+            pending_changes["temp"] = min(temp_step, target_temp - temperature)
+        else:
+            pending_changes["temp"] = max(-temp_step, target_temp - temperature)
         
         print(f"{format_sim_time(env.now):<15} {'Heating Milk':<50} {milk_amount:<20.2f} {whey_amount:<20.2f} {curd_amount:<20.2f} {temperature:<15.1f} {pH:<10.2f} {', '.join(anomalies):<100}")
         yield env.timeout(1)
     
-    # Apply final temperature change
-    temperature += pending_changes["temp"]
-    pending_changes["temp"] = 0
-    temperature = round(target_temp, 1)  # Ensure we hit the exact target
+    # Ensure we hit the exact target
+    temperature = round(target_temp, 1)
     
     # --- Step 3: Rennet dosing and stirring ---
     # Rennet anomaly check with improved selection
@@ -201,8 +187,8 @@ def cheese_vat_process(env, anomaly_probability=DEFAULT_ANOMALY_PROBABILITY):
         anomalies.append(f"pH not optimal ({pH + pending_changes['ph']})")
         anomaly_effects["weak_curds"] = True
     
-    # Rennet dosing (2 minutes)
-    for step in range(STEPS_RENNET_DOSING):
+    # Rennet dosing (fixed time - 2 minutes)
+    for step in range(8):  # 2 minutes = 8 steps
         # Apply pending changes
         pH += pending_changes["ph"]
         pending_changes["ph"] = 0
@@ -210,8 +196,8 @@ def cheese_vat_process(env, anomaly_probability=DEFAULT_ANOMALY_PROBABILITY):
         print(f"{format_sim_time(env.now):<15} {'Rennet Dosing':<50} {milk_amount:<20.2f} {whey_amount:<20.2f} {curd_amount:<20.2f} {temperature:<15.1f} {pH:<10.2f} {', '.join(anomalies):<100}")
         yield env.timeout(1)
     
-    # Gentle stirring (5 minutes)
-    for step in range(STEPS_RENNET_STIRRING):
+    # Gentle stirring (fixed time - 5 minutes)
+    for step in range(20):  # 5 minutes = 20 steps
         print(f"{format_sim_time(env.now):<15} {'Gentle Stirring (for rennet)':<50} {milk_amount:<20.2f} {whey_amount:<20.2f} {curd_amount:<20.2f} {temperature:<15.1f} {pH:<10.2f} {', '.join(anomalies):<100}")
         yield env.timeout(1)
     
@@ -228,7 +214,7 @@ def cheese_vat_process(env, anomaly_probability=DEFAULT_ANOMALY_PROBABILITY):
         conversion_rate = 1.0
     
     # Calculate milk conversion per step
-    milk_per_step = milk_amount / STEPS_COAGULATION * conversion_rate
+    milk_per_step = milk_amount * BASE_MILK_CONVERSION_RATE * conversion_rate
     
     # Generate appropriate descriptions based on anomalies
     coagulation_descriptions = []
@@ -251,8 +237,9 @@ def cheese_vat_process(env, anomaly_probability=DEFAULT_ANOMALY_PROBABILITY):
     if not coagulation_descriptions:
         coagulation_descriptions = ["Normal coagulation in progress"]
     
-    # Simulate coagulation with data at every 15-second interval
-    for step in range(STEPS_COAGULATION):
+    # Simulate coagulation - continue until all milk is converted
+    step_count = 0
+    while milk_amount > 0.1 and step_count < MAX_STEPS_PER_PHASE:  # Continue until milk is essentially gone
         # Apply pending changes
         milk_amount -= pending_changes["milk"]
         curd_amount += pending_changes["curd"]
@@ -262,7 +249,7 @@ def cheese_vat_process(env, anomaly_probability=DEFAULT_ANOMALY_PROBABILITY):
         pending_changes["whey"] = 0
         
         # Cycle through descriptions
-        description_idx = step % len(coagulation_descriptions)
+        description_idx = step_count % len(coagulation_descriptions)
         description = f"Coagulation: {coagulation_descriptions[description_idx]}"
         
         # Calculate next conversion
@@ -274,6 +261,7 @@ def cheese_vat_process(env, anomaly_probability=DEFAULT_ANOMALY_PROBABILITY):
         
         print(f"{format_sim_time(env.now):<15} {description:<50} {milk_amount:<20.2f} {whey_amount:<20.2f} {curd_amount:<20.2f} {temperature:<15.1f} {pH:<10.2f} {', '.join(anomalies):<100}")
         yield env.timeout(1)
+        step_count += 1
     
     # Apply final pending changes
     milk_amount -= pending_changes["milk"]
@@ -282,6 +270,10 @@ def cheese_vat_process(env, anomaly_probability=DEFAULT_ANOMALY_PROBABILITY):
     pending_changes["milk"] = 0
     pending_changes["curd"] = 0
     pending_changes["whey"] = 0
+    
+    # Ensure milk is completely gone
+    if milk_amount < 0.1:
+        milk_amount = 0
     
     # --- Step 5: Cutting phase ---
     # Check for cutting anomaly
@@ -294,22 +286,25 @@ def cheese_vat_process(env, anomaly_probability=DEFAULT_ANOMALY_PROBABILITY):
         anomalies.append("Mechanical fault / dull blade")
         anomaly_effects["uneven_curds"] = True
     
-    # Determine cutting time based on anomalies
+    # Determine cutting parameters based on anomalies
     if anomaly_effects["weak_curds"] or anomaly_effects["small_curds"]:
-        cutting_time = STEPS_EXTENDED_CUTTING
         cutting_desc = "Cutting (delayed - soft curd)"
+        whey_release_rate = BASE_WHEY_RELEASE_RATE * 0.7  # Slower release for weak curds
     elif anomaly_effects["rubbery_curds"]:
-        cutting_time = STEPS_NORMAL_CUTTING  # Normal time but with resistance
         cutting_desc = "Cutting (resistance - firm curd)"
+        whey_release_rate = BASE_WHEY_RELEASE_RATE * 0.8  # Slower release for rubbery curds
     else:
-        cutting_time = STEPS_NORMAL_CUTTING
         cutting_desc = "Cutting"
+        whey_release_rate = BASE_WHEY_RELEASE_RATE
     
-    # During cutting, more whey is released from curd
+    # Target to release 20% of curd as whey during cutting
+    target_whey_release = curd_amount * 0.2
     initial_curd = curd_amount
-    whey_release_per_step = initial_curd * 0.2 / cutting_time
+    released_whey = 0
     
-    for step in range(int(cutting_time)):
+    # Simulate cutting - continue until target whey release is achieved
+    step_count = 0
+    while released_whey < target_whey_release and step_count < MAX_STEPS_PER_PHASE:
         # Apply pending changes
         curd_amount -= pending_changes["curd"]
         whey_amount += pending_changes["whey"]
@@ -317,9 +312,10 @@ def cheese_vat_process(env, anomaly_probability=DEFAULT_ANOMALY_PROBABILITY):
         pending_changes["whey"] = 0
         
         # Calculate next whey release
-        whey_released = min(whey_release_per_step, curd_amount * 0.01)  # Max 1% per step
+        whey_released = min(initial_curd * whey_release_rate, curd_amount * 0.01, target_whey_release - released_whey)
         pending_changes["curd"] = whey_released
         pending_changes["whey"] = whey_released
+        released_whey += whey_released
         
         # Determine description based on conditions
         if anomaly_effects["uneven_curds"]:
@@ -331,6 +327,7 @@ def cheese_vat_process(env, anomaly_probability=DEFAULT_ANOMALY_PROBABILITY):
         
         print(f"{format_sim_time(env.now):<15} {desc:<50} {milk_amount:<20.2f} {whey_amount:<20.2f} {curd_amount:<20.2f} {temperature:<15.1f} {pH:<10.2f} {', '.join(anomalies):<100}")
         yield env.timeout(1)
+        step_count += 1
     
     # Apply final pending changes
     curd_amount -= pending_changes["curd"]
@@ -352,8 +349,8 @@ def cheese_vat_process(env, anomaly_probability=DEFAULT_ANOMALY_PROBABILITY):
     
     # Calculate whey release based on anomalies
     if stirring_anomaly == "stirring_excessive":
-        whey_factor = 0.2  # 2% of curd becomes whey
-        curd_loss_factor = 0.025  # 2.5% curd loss due to fines (very fine curd, likely going to be washed away)
+        whey_factor = 0.2  # 20% of curd becomes whey
+        curd_loss_factor = 0.025  # 2.5% curd loss due to fines
     elif anomaly_effects["uneven_curds"]:
         whey_factor = 0.15  # 15% of curd becomes whey
         curd_loss_factor = 0.01  # 1% curd loss
@@ -364,14 +361,11 @@ def cheese_vat_process(env, anomaly_probability=DEFAULT_ANOMALY_PROBABILITY):
         whey_factor = 0.20  # 20% of curd becomes whey
         curd_loss_factor = 0
     
-    initial_curd = curd_amount
-    whey_release_per_step = initial_curd * whey_factor / STEPS_STIRRING_COOKING
-    curd_loss_per_step = initial_curd * curd_loss_factor / STEPS_STIRRING_COOKING
+    # First part: Heat to cooking temperature
+    temp_step = (TEMP_COOKING - temperature) / 60  # Aim to reach target in ~15 minutes
     
-    # Gradually increase temperature from current to cooking temp
-    temp_step = (TEMP_COOKING - temperature) / STEPS_STIRRING_COOKING
-    
-    for step in range(STEPS_STIRRING_COOKING):
+    # Continue until target temperature is reached
+    while abs(temperature - TEMP_COOKING) > 0.1:
         # Apply pending changes
         temperature += pending_changes["temp"]
         curd_amount -= pending_changes["curd"]
@@ -381,17 +375,28 @@ def cheese_vat_process(env, anomaly_probability=DEFAULT_ANOMALY_PROBABILITY):
         pending_changes["whey"] = 0
         
         # Calculate next temperature change
-        pending_changes["temp"] = temp_step
+        if temperature < TEMP_COOKING:
+            pending_changes["temp"] = min(temp_step, TEMP_COOKING - temperature)
+        else:
+            pending_changes["temp"] = max(-temp_step, TEMP_COOKING - temperature)
         
         print(f"{format_sim_time(env.now):<15} {'Cooking (heating temperature)':<50} {milk_amount:<20.2f} {whey_amount:<20.2f} {curd_amount:<20.2f} {temperature:<15.1f} {pH:<10.2f} {', '.join(anomalies):<100}")
         yield env.timeout(1)
     
-    # Apply final temperature change
-    temperature += pending_changes["temp"]
-    pending_changes["temp"] = 0
-    temperature = TEMP_COOKING  # Ensure we hit the exact target
+    # Ensure we hit the exact target
+    temperature = TEMP_COOKING
     
-    for step in range(STEPS_STIRRING):
+    # Second part: Stirring at cooking temperature
+    # Target to release specified percentage of curd as whey during stirring
+    target_whey_release = curd_amount * whey_factor
+    target_curd_loss = curd_amount * curd_loss_factor
+    initial_curd = curd_amount
+    released_whey = 0
+    lost_curd = 0
+    
+    # Simulate stirring - continue until target whey release is achieved
+    step_count = 0
+    while (released_whey < target_whey_release or lost_curd < target_curd_loss) and step_count < MAX_STEPS_PER_PHASE:
         # Apply pending changes
         curd_amount -= pending_changes["curd"]
         whey_amount += pending_changes["whey"]
@@ -400,13 +405,19 @@ def cheese_vat_process(env, anomaly_probability=DEFAULT_ANOMALY_PROBABILITY):
         
         # Calculate next whey release and curd loss
         if curd_amount > 0:
-            whey_released = min(whey_release_per_step, curd_amount * 0.02)  # Max 2% per step
-            pending_changes["curd"] = whey_released
-            pending_changes["whey"] = whey_released
+            # Whey release
+            whey_released = min(initial_curd * BASE_WHEY_RELEASE_RATE, curd_amount * 0.02, target_whey_release - released_whey)
+            if whey_released > 0:
+                pending_changes["curd"] = whey_released
+                pending_changes["whey"] = whey_released
+                released_whey += whey_released
             
+            # Curd loss
             if curd_loss_factor > 0:
-                curd_lost = min(curd_loss_per_step, curd_amount * 0.01)  # Max 1% per step
-                pending_changes["curd"] += curd_lost
+                curd_lost = min(initial_curd * curd_loss_factor / 100, curd_amount * 0.01, target_curd_loss - lost_curd)
+                if curd_lost > 0:
+                    pending_changes["curd"] += curd_lost
+                    lost_curd += curd_lost
         
         # Description based on conditions
         if stirring_anomaly == "stirring_excessive":
@@ -420,6 +431,7 @@ def cheese_vat_process(env, anomaly_probability=DEFAULT_ANOMALY_PROBABILITY):
         
         print(f"{format_sim_time(env.now):<15} {desc:<50} {milk_amount:<20.2f} {whey_amount:<20.2f} {curd_amount:<20.2f} {temperature:<15.1f} {pH:<10.2f} {', '.join(anomalies):<100}")
         yield env.timeout(1)
+        step_count += 1
     
     # Apply final pending changes
     curd_amount -= pending_changes["curd"]
@@ -456,11 +468,12 @@ def cheese_vat_process(env, anomaly_probability=DEFAULT_ANOMALY_PROBABILITY):
         curd_loss_factor *= 2.0  # Double the loss with fast drain
         curd_loss_factor += 0.01  # Additional 1% base loss
     
-    # Original whey amount
-    original_whey = whey_amount
-    whey_per_step = original_whey / STEPS_WHEY_RELEASE * drain_factor
+    # Calculate drain rate
+    whey_drain_rate = BASE_WHEY_DRAIN_RATE * drain_factor
     
-    for step in range(STEPS_WHEY_RELEASE):
+    # Simulate whey release - continue until all whey is drained
+    step_count = 0
+    while whey_amount > 0.1 and step_count < MAX_STEPS_PER_PHASE:
         # Apply pending changes
         whey_amount -= pending_changes["whey"]
         curd_amount -= pending_changes["curd"]
@@ -468,16 +481,16 @@ def cheese_vat_process(env, anomaly_probability=DEFAULT_ANOMALY_PROBABILITY):
         pending_changes["curd"] = 0
         
         # Calculate next whey drain
-        whey_to_drain = min(whey_per_step, whey_amount)
+        whey_to_drain = min(whey_amount * whey_drain_rate, whey_amount)
         pending_changes["whey"] = whey_to_drain
         
         # Curd loss calculation - more pronounced as draining progresses
         if curd_amount > 0 and curd_loss_factor > 0:
             # Progressive loss - more pronounced in middle of draining
-            drain_progress = step / STEPS_WHEY_RELEASE
+            drain_progress = 1 - (whey_amount / (whey_amount + pending_changes["whey"]))
             # Bell curve effect - peak loss in middle of draining
             progress_factor = 4 * drain_progress * (1 - drain_progress)
-            curd_loss = curd_amount * curd_loss_factor * progress_factor / STEPS_WHEY_RELEASE
+            curd_loss = curd_amount * curd_loss_factor * progress_factor * whey_drain_rate
             pending_changes["curd"] = curd_loss
         
         # Description based on conditions
@@ -495,12 +508,17 @@ def cheese_vat_process(env, anomaly_probability=DEFAULT_ANOMALY_PROBABILITY):
         
         print(f"{format_sim_time(env.now):<15} {desc:<50} {milk_amount:<20.2f} {whey_amount:<20.2f} {curd_amount:<20.2f} {temperature:<15.1f} {pH:<10.2f} {', '.join(anomalies):<100}")
         yield env.timeout(1)
+        step_count += 1
     
     # Apply final pending changes
     whey_amount -= pending_changes["whey"]
     curd_amount -= pending_changes["curd"]
     pending_changes["whey"] = 0
     pending_changes["curd"] = 0
+    
+    # Ensure whey is completely gone
+    if whey_amount < 0.1:
+        whey_amount = 0
     
     # --- Step 8: Curd storage ---
     print(f"{format_sim_time(env.now):<15} {'Curd Stored for Processing':<50} {milk_amount:<20.2f} {whey_amount:<20.2f} {curd_amount:<20.2f} {temperature:<15.1f} {pH:<10.2f} {', '.join(anomalies):<100}")
