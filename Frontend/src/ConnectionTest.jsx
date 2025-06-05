@@ -14,7 +14,7 @@ const ConnectionTest = () => {
     setMessage("")
 
     try {
-      const response = await fetch("http://127.0.0.1:3001/run-simulation", {
+      const response = await fetch("http://localhost:3001/run-simulation", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -54,12 +54,8 @@ const ConnectionTest = () => {
         </div>
       </div>
 
-      <div className="endpoint-info">
-        <p>
-          Testing endpoint: <code>http://127.0.0.1:3001/run-simulation</code>
-        </p>
+      
       </div>
-    </div>
   )
 }
 
