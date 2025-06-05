@@ -36,7 +36,7 @@ def cheddaring_process(env, initial_curd_amount, milling_startup, process_time):
         whey_kg = ((100 - moisture) / 100) * initial_curd_amount
         texture = calculate_texture(t)
 
-        print(f"{t:<12} {moisture:<15.2f} {whey_kg:<20.2f} {texture:<18.2f} {'Yes' if milled else 'No'}")
+            print(f"{t:<12} {moisture:<15.2f} {whey_kg:<20.2f} {texture:<18.2f} {'Yes' if milled else 'No'}")
 
         yield env.timeout(15)  # 15-minute intervals
 

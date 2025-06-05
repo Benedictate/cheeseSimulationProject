@@ -1,12 +1,14 @@
 version: '3'
 services:
-#  react-app:
-#    build: ./react-app
-#    ports:
-#      - "5000:5000"
-#  node-backend:
-#    build: ./node-backend
-#    ports:
-#      - "3000:3000"
+  react-app:
+    build: ./react-app
+    ports:
+      - "5000:5000"
+  node-backend:
+    build: ./node-backend
+    ports:
+      - "3000:3000"
+    environment:
+      - CORS_ALLOWED_ORIGINS=http://your-frontend-domain.com
   python-program:
     build: ./python-program
