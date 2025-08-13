@@ -2,8 +2,8 @@ import simpy
 from datetime import datetime as dt
 
 class CheeseRipeningSimulation:
-    # --- Simulation Constants ---
-    TOTAL_CHEESE = 108  # Total cheese to process (kilograms)
+    # --- Input related ---
+    TOTAL_CHEESE_BACKUP = 108  # Total cheese to process (kilograms)
     INTAKE_PER_STEP = 27  # Weight of one block
 
     # --- Temperature Thresholds (°C) ---
@@ -22,7 +22,7 @@ class CheeseRipeningSimulation:
     TEMP_RISE_WHEN_COLD = 1.5  # Reheating rate per step
 
     def __init__(self, incoming_blocks=None, initial_temp=None):
-        self.incoming_blocks = incoming_blocks or self.TOTAL_CHEESE
+        self.incoming_blocks = incoming_blocks or self.TOTAL_CHEESE_BACKUP
         self.initial_temp = initial_temp or self.TEMP_OPTIMAL
         self.env = simpy.Environment()
 
@@ -46,7 +46,7 @@ class CheeseRipeningSimulation:
         print("-" * 95)
 
         # Processing loop
-        while (intake > 0) and (ripening < self.TOTAL_CHEESE):
+        while (intake > 0) and (ripening < self.TOTAL_CHEESE_BACKUP):
             yield self.env.timeout(self.STEP_DURATION_SEC)
 
             intake -= self.INTAKE_PER_STEP
