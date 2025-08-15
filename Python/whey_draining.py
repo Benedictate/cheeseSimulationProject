@@ -11,8 +11,7 @@ class WheyDrainer:
         self.TARGET_MOISTURE = 58.0      #Target moisture % in final curd (industry standard)
         self.DRAIN_TIME = 60             #Total draining time in minutes
         self.TEMP_START = 38.0           #Start temp
-        self.TEMP_END = 32.0             #End temp
-        
+        self.TEMP_END = 32.0             #End temp        
         #Process variables of conditions
         self.curd = self.INITIAL_CURD    # Curr curd volume will decrease
         self.whey_remaining = self.INITIAL_WHEY  #Whey left to drain
@@ -32,7 +31,6 @@ class WheyDrainer:
         
         # Record start time in UTC
         self.start_time = datetime.now(timezone.utc)
-
         # based on industry, draining to be done in about 12 intervals
         intervals = self.DRAIN_TIME // 5
         moisture_drop_per_interval = (self.INITIAL_MOISTURE - self.TARGET_MOISTURE) / intervals # moisture drops from 80% to 58%, Total drop = 22%
@@ -64,7 +62,6 @@ class WheyDrainer:
 
             # Display current status
             print(f"{current_time.strftime('%Y-%m-%d %H:%M:%S')} | {self.time_elapsed:03d}       | {self.temp:7.1f} | {self.whey_remaining:12.1f}      | {self.curd:7.1f} | {self.moisture:9.1f}")
-
             # Increment time by 5 minutes for next interval
             self.time_elapsed += 5
 
@@ -77,3 +74,4 @@ class WheyDrainer:
 if __name__ == "__main__":
     drainer = WheyDrainer()  #Create instance of our machine
     drainer.run()  #calling whey_draining
+
