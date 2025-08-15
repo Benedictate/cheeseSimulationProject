@@ -70,8 +70,9 @@ class WheyDrainer:
         print(f"Total Time: {self.time_elapsed-5} minutes")
 
 
-#Start the whey draining simulation
+#Start of whey draining simu
 if __name__ == "__main__":
-    drainer = WheyDrainer()  #Create instance of our machine
+    drainer = WheyDrainer() 
     drainer.run()  #calling whey_draining
+
 
