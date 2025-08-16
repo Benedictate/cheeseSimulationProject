@@ -1,46 +1,72 @@
-import simpy
-import math
 
-# Constants
-INITIAL_CURD_KG = 10
-MOISTURE_DIFFERENCE = 30
-MOISTURE_FINAL = 45  # from 75% to 45%
-DECAY_RATE_PRE_MILL = -0.02
-DECAY_RATE_POST_MILL = -0.025
-MILL_START_TIME = 90
-SIGMOID_STEEPNESS = -0.05
-MAXIMUM_TEXTURE = 10
-TOTAL_PROCESS_TIME=180
+import simpy  # Import SimPy for discrete-event simulation
+import math  # Import math for exponential and sigmoid functions
 
-# Functions for moisture and texture
-def calculate_moisture(t):
-    if t < MILL_START_TIME:
-        return MOISTURE_DIFFERENCE * math.exp(DECAY_RATE_PRE_MILL * t) + MOISTURE_FINAL
-    else:
-        return MOISTURE_DIFFERENCE * math.exp(DECAY_RATE_POST_MILL * (t - MILL_START_TIME)) + MOISTURE_FINAL
 
-def calculate_texture(t):
-    return MAXIMUM_TEXTURE / (1 + math.exp(SIGMOID_STEEPNESS * (t - MILL_START_TIME)))
+class CheddarSim:
+    def __init__(self, env):
+        # Save the SimPy environment (acts as a simulation clock and scheduler)
+        self.env = env
 
-def cheddaring_process(env, initial_curd_amount, milling_startup, process_time):
-    print(f"Starting curd: {initial_curd_amount:.2f} kg\n")
-    print("-" * 80)
-    print(f"{'Time (min)':<12} {'Moisture (%)':<15} {'Whey Lost (kg)':<20} {'Texture (0–10)':<18} {'Milled?'}")
-    print("-" * 80)
+        # --- Parameters of the process ---
+        self.initial_curd_kg = 10 # Starting curd mass (kg)
+        self.moisture_diff = 30 # Moisture drop: 75% to 45%
+        self.moisture_final = 45 # Final moisture target (%)
+        self.decay_pre = -0.02 # Moisture decay rate before milling
+        self.decay_post = -0.025 # Moisture decay rate after milling
+        self.mill_start = 90 # Milling starts at 90 minutes
+        self.sigmoid_k = -0.05 # Steepness of texture S-curve
+        self.texture_max = 10 # Maximum texture score
+        self.total_time = 180 # Total simulation time (minutes)
+        self.step = 15 # Step size: print every 15 minutes
 
-    while env.now <= process_time:
-        t = env.now
-        milled = t >= milling_startup
+    #Moisture function 
+    def moisture(self, t):
+        if t < self.mill_start:  # If before milling
+            return self.moisture_diff * math.exp(self.decay_pre * t) + self.moisture_final
+        else:                    # If after milling
+            dt = t - self.mill_start
+            return self.moisture_diff * math.exp(self.decay_post * dt) + self.moisture_final
 
-        moisture = calculate_moisture(t)
-        whey_kg = ((100 - moisture) / 100) * initial_curd_amount
-        texture = calculate_texture(t)
+    #Texture function
+    def texture(self, t):
+        #Logistic (sigmoid) curve centered around milling start.
+        return self.texture_max / (1 + math.exp(self.sigmoid_k * (t - self.mill_start)))
 
-            print(f"{t:<12} {moisture:<15.2f} {whey_kg:<20.2f} {texture:<18.2f} {'Yes' if milled else 'No'}")
+    #Main SimPy process
+    def process(self):
+        # Print initial curd mass
+        print(f"Starting curd: {self.initial_curd_kg:.2f} kg\n")
+        # Print table header
+        print("-" * 80)
+        print(f"{'Time (min)':<12} {'Moisture (%)':<15} {'Whey Lost (kg)':<20} "
+              f"{'Texture (0–10)':<18} {'Milled?'}")
+        print("-" * 80)
 
-        yield env.timeout(15)  # 15-minute intervals
+        # Loop over time steps from 0 up to total_time (inclusive)
+        for t in range(0, self.total_time + 1, self.step):
+            # Compute whether milling has started
+            milled = "Yes" if t >= self.mill_start else "No"
+            # Calculate moisture at time t
+            m = self.moisture(t)
+            # Calculate whey lost (kg): portion of curd that is not moisture
+            whey_kg = ((100 - m) / 100) * self.initial_curd_kg
+            # Calculate texture at time t
+            tx = self.texture(t)
 
-# Run simulation
-env = simpy.Environment()
-env.process(cheddaring_process(env, INITIAL_CURD_KG, MILL_START_TIME, TOTAL_PROCESS_TIME))
-env.run()
+            # Print one row of the table
+            print(f"{t:<12} {m:<15.2f} {whey_kg:<20.2f} {tx:<18.2f} {milled}")
+
+            # Tell SimPy to wait until the next step (advance time by `step`)
+            yield self.env.timeout(self.step)
+
+    def run(self):
+
+        self.env.process(self.process())
+        self.env.run(until=self.total_time + self.step)
+
+if __name__ == "__main__":
+
+    env = simpy.Environment()
+    sim = CheddarSim(env)
+    sim.run()
