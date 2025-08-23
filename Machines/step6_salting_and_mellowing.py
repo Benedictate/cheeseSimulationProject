@@ -58,10 +58,10 @@ class SaltingMachine:
         print(f"Observations saved to {filename}")
 
     @staticmethod
-    def run(env, generator_output, salting_output, mellowing_time=10, salt_recipe=0.033):
+    def run(env, input_conveyor, salting_output, mellowing_time=10, salt_recipe=0.033):
         mellowing_conveyor = simpy.Store(env)
 
-        machine = SaltingMachine(env, generator_output, mellowing_conveyor, salting_output,
+        machine = SaltingMachine(env, input_conveyor, mellowing_conveyor, salting_output,
                                  mellowing_time=mellowing_time, salt_recipe=salt_recipe)
 
         env.process(machine.salt_dispenser())

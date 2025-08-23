@@ -1,195 +1,105 @@
-
 import simpy
 import random
-import pandas as pd
-from datetime import datetime, timedelta, timezone
-import uuid
+import json
+import csv
+import os
+from datetime import datetime, timezone
 
-pd.set_option('display.max_columns', None)
-pd.set_option('display.width', 200)
-pd.set_option('display.max_colwidth', None)
+class CurdCutter:
+    def __init__(self, env, input_conveyor, output_conveyor, avg_blade_wear_rate=0.1, base_auger_speed=50):
+        self.env = env
+        self.input_conveyor = input_conveyor
+        self.output_conveyor = output_conveyor
+        self.avg_blade_wear_rate = avg_blade_wear_rate
+        self.base_auger_speed = base_auger_speed
+        self.per_curd_logs = []
+        self.batch_logs = []
 
-# Simulate incoming data from the pasteurization stage
-# This is fake data that pretends to come from the machine before the curd cutter
-# Each "minute" has a random volume and a quality indicator called "variance"
-preprocessing_data = [
-    {
-        "minute": i,
-        "start_milk_l": 1000,
-        "pasteurized_l": random.randint(80, 120),
-        "variance": random.choice(["none", "low_temp", "temp_spike"])
-    }
-    for i in range(0, 30)
-]
+    def process_batch(self):
+        while True:
+            batch = yield self.input_conveyor.get()
+            print(f"[{self.env.now:.2f}] Starting curd cutting for batch {batch['batch_id']}")
 
-# Deciding if a batch should be processed or skipped
-# Based on the variance (quality indicator)
-def interpret_variance(variance):
-    if variance == "low_temp":
-        return True, "soft"  # We skip soft curds as they're not ready
-    elif variance == "temp_spike":
-        return False, "firm"  # Temp spike gives us firm curd — we process it
-    else:
-        return False, "medium"  # Normal condition
+            start_time = self.env.now
+            curds = []
+            total_mass = batch['total_milk_in']
+            num_curds = int(total_mass * 10)  # arbitrary curd density
 
-# STEP 3: we can set the auger speed based on the curd consistency
-# This simulates how fast the curd moves through the machine
-def get_auger_speed(consistency):
-    if consistency == 'firm':
-        return random.randint(60, 70)
-    elif consistency == 'soft':
-        return random.randint(80, 90)
-    else:
-        return random.randint(70, 80)
+            total_curd = 0
+            total_whey = 0
+            anomalies_handled = []
 
-# STEP 4: curd cutting simulation logic
-# This is where we model the machine behavior, blade wear, maintenance, etc.
-def curd_cutting_machine(env, name, output_list, data_source):
-    blade_sharpness = 100         # Machine starts fully sharp
-    maintenance_time = 7          # Time it takes to perform maintenance
-    blade_cycles = 0              # How many batches this blade has cut
-    data_index = 0
+            for i in range(num_curds):
+                yield self.env.timeout(0.1)  # small delay per curd
 
-    while data_index < len(data_source):
-        entry = data_source[data_index]
-        data_index += 1
+                blade_sharpness = max(100 - self.avg_blade_wear_rate * i, 50)
+                auger_speed = self.base_auger_speed + random.uniform(-5, 5)
 
-        # Pull input values from preprocessing
-        minute = entry["minute"]
-        pasteurized = entry["pasteurized_l"]
-        variance = entry["variance"]
+                curd_mass = total_mass / num_curds * 0.9  # 90% milk to curd
+                whey_mass = total_mass / num_curds * 0.1
 
-        # Determine if batch is skippable and get consistency
-        skip_batch, consistency = interpret_variance(variance)
-        anomalies = []
-        machine_status = "ok"
+                total_curd += curd_mass
+                total_whey += whey_mass
 
-        # If the batch has to be skipped, log it and move on
-        if skip_batch:
-            anomalies.append(variance)
-            yield env.timeout(2)  # Simulates time wasted on skipped batch
-            output_list.append({
-                "batch_id": str(uuid.uuid4()),
-                "machine": name,
-                "status": "Batch skipped - not processable",
-                "anomalies_detected": anomalies,
-                "variance": variance,
-                "volume_litres": pasteurized,
-                "source_minute": minute,
-                "timestamp": (datetime.now(timezone.utc) + timedelta(minutes=env.now)).isoformat(),
-                "start_minute": env.now,
-                "end_minute": env.now + 2,
-                "blade_sharpness": blade_sharpness,
-                "blade_cycles": blade_cycles,
-                "processing_time_sec": 0,
-                "slice_thickness_mm": "N/A",
-                "auger_speed_rpm": "N/A",
-                "curd_weight_kg": "N/A",
-                "machine_status": "warning"
-            })
-            continue
+                curd_data = {
+                    'batch_id': batch['batch_id'],
+                    'curd_id': f"{batch['batch_id']}_curd_{i}",
+                    'blade_sharpness': round(blade_sharpness, 2),
+                    'auger_speed': round(auger_speed, 2),
+                    'curd_mass': round(curd_mass, 3),
+                    'whey_mass': round(whey_mass, 3),
+                    'anomaly_response': batch['anomalies']
+                }
 
-        # If batch is good, simulate cutting process
-        volume = pasteurized
-        base_time = volume / 60  # Basic time based on batch size
+                self.per_curd_logs.append(self._log_per_curd(curd_data))
+                yield self.output_conveyor.put(curd_data)
 
-        # Adjust based on consistency of curd
-        if consistency == "soft":
-            base_time *= 1.2
-        elif consistency == "firm":
-            base_time *= 0.8
+            end_time = self.env.now
 
-        # If blade is worn, processing takes longer
-        wear_factor = (100 - blade_sharpness) / 100
-        adjusted_time = round(base_time + base_time * wear_factor, 2)
+            batch_summary = {
+                'batch_id': batch['batch_id'],
+                'start_time_min': start_time,
+                'end_time_min': end_time,
+                'total_milk_in_L': total_mass,
+                'curd_yield_L': round(total_curd, 2),
+                'curd_yield_%': round((total_curd / total_mass) * 100, 2),
+                'whey_yield_L': round(total_whey, 2),
+                'whey_yield_%': round((total_whey / total_mass) * 100, 2),
+                'avg_temp_C': batch['avg_temperature'],
+                'final_pH': batch['final_pH'],
+                'anomalies_handled': batch['anomalies'],
+                'sim_utc_timestamp': datetime.now(timezone.utc).isoformat()
+            }
 
-        # Machine parameters
-        auger_speed_rpm = get_auger_speed(consistency)
-        slice_thickness_mm = random.randint(8, 12)
-        curd_weight_kg = round(volume * 1.03, 2)  # Simulated yield
+            self.batch_logs.append(batch_summary)
+            print(f"[{self.env.now:.2f}] Finished cutting batch {batch['batch_id']}")
 
-        # Simulate cutting time
-        start = env.now
-        yield env.timeout(adjusted_time)
-        end = env.now
-        blade_cycles += 1
+    def _log_per_curd(self, curd):
+        return {
+            'sim_time_min': self.env.now,
+            'curd_id': curd['curd_id'],
+            'batch_id': curd['batch_id'],
+            'blade_sharpness': curd['blade_sharpness'],
+            'auger_speed': curd['auger_speed'],
+            'curd_mass': curd['curd_mass'],
+            'whey_mass': curd['whey_mass'],
+            'anomaly_response': curd['anomaly_response'],
+            'utc_time': datetime.now(timezone.utc).isoformat()
+        }
 
-        # Log completed batch
-        output_list.append({
-            "batch_id": str(uuid.uuid4()),
-            "machine": name,
-            "start_minute": start,
-            "end_minute": end,
-            "processing_time_sec": adjusted_time * 60,
-            "volume_litres": volume,
-            "curd_weight_kg": curd_weight_kg,
-            "consistency": consistency,
-            "blade_sharpness": blade_sharpness,
-            "blade_cycles": blade_cycles,
-            "slice_thickness_mm": slice_thickness_mm,
-            "auger_speed_rpm": auger_speed_rpm,
-            "status": "Cutting complete",
-            "machine_status": machine_status,
-            "anomalies_detected": anomalies,
-            "variance": variance,
-            "source_minute": minute,
-            "timestamp": (datetime.now(timezone.utc) + timedelta(minutes=env.now)).isoformat()
-        })
+    def save_logs(self, folder='data/curd_cutter'):
+        os.makedirs(folder, exist_ok=True)
 
-        # Reduce blade sharpness after every batch
-        blade_sharpness -= 10
+        with open(os.path.join(folder, 'per_curd_log.json'), 'w') as f:
+            json.dump(self.per_curd_logs, f, indent=4)
 
-        # Simulate automatic maintenance if blade gets too dull
-        if blade_sharpness <= 40:
-            start_maint = env.now
-            yield env.timeout(maintenance_time)
-            blade_sharpness = 100
-            output_list.append({
-                "batch_id": str(uuid.uuid4()),
-                "machine": name,
-                "start_minute": start_maint,
-                "end_minute": env.now,
-                "processing_time_sec": maintenance_time * 60,
-                "blade_sharpness": blade_sharpness,
-                "blade_cycles": blade_cycles,
-                "status": "Maintenance performed",
-                "machine_status": "maintenance",
-                "timestamp": (datetime.now(timezone.utc) + timedelta(minutes=env.now)).isoformat(),
-                "anomalies_detected": [],
-                "source_minute": "N/A"
-            })
+        with open(os.path.join(folder, 'cutter_batch_log.json'), 'w') as f:
+            json.dump(self.batch_logs, f, indent=4)
 
-        # Idle time between batches
-        yield env.timeout(random.randint(1, 3))
+        print(f"Logs saved to {folder}")
 
-def run_simulation():
-    output = []
-    env = simpy.Environment()
-
-    # We have 3 machines running in parallel
-    env.process(curd_cutting_machine(env, "Machine A", output, preprocessing_data))
-    env.process(curd_cutting_machine(env, "Machine B", output, preprocessing_data))
-    env.process(curd_cutting_machine(env, "Machine C", output, preprocessing_data))
-
-    # Run the simulation for 30 minutes
-    env.run(until=30)
-
-    df = pd.DataFrame(output)
-
-    float_cols = [
-        "start_minute", "end_minute", "processing_time_sec",
-        "volume_litres", "curd_weight_kg", "slice_thickness_mm", "auger_speed_rpm"
-    ]
-    for col in float_cols:
-        if col in df.columns:
-            df[col] = df[col].apply(lambda x: round(x, 3) if pd.notnull(x) and isinstance(x, (float, int)) else x)
-
-    # Save the final output to CSV and JSON
-    df.to_csv(r"C:\Users\ahmed\OneDrive - Swinburne University\final year project\machines_code\curd_cutting_output_updated.csv", index=False)
-    df.to_json(r"C:\Users\ahmed\OneDrive - Swinburne University\final year project\machines_code\curd_cutting_output_updated.json", orient="records", indent=2)
-
-    # Print table to terminal
-    print(df)
-    return df
-
-df_result = run_simulation()
+    @staticmethod
+    def run(env, input_conveyor, output_conveyor, avg_blade_wear_rate=0.1, base_auger_speed=50):
+        machine = CurdCutter(env, input_conveyor, output_conveyor, avg_blade_wear_rate, base_auger_speed)
+        env.process(machine.process_batch())
+        return machine
