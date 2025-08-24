@@ -80,7 +80,7 @@ class CheesePressMachine:
             json.dump(self.log, f, indent=4)
 
         pd.DataFrame(self.log).to_csv(csv_path, index=False)
-        print(f"✅ Logs saved to: {json_path} and {csv_path}")
+        print(f"Logs saved to: {json_path} and {csv_path}")
 
     @staticmethod
     def run(env, input_conveyor, output_conveyor, mold_count=5):
