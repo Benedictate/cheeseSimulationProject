@@ -14,7 +14,7 @@ RUN npm install
 COPY src/routes ./
 
 # Expose the port the app runs on
-EXPOSE 8000
+EXPOSE 3001
 
 # Start the Node.js app
 CMD ["npm", "start"]
