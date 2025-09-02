@@ -1,4 +1,3 @@
-version: '3'
 services:
   react-app:
     build: ./Frontend
@@ -9,4 +8,4 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - CORS_ALLOWED_ORIGINS=http://your-frontend-domain.com
+      - CORS_ALLOWED_ORIGINS=http://localhost:5000
