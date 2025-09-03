@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+data/*.json
+.vscode/
+.DS_Store
+Thumbs.db
+*.py[cod]
