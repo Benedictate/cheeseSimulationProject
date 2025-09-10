@@ -11,7 +11,7 @@ services:
     ports:
       - "3001:3001"
     environment:
-      - CORS_ALLOWED_ORIGINS=http://localhost:5000
+      - CORS_ALLOWED_ORIGINS=http://localhost:5000 #change if you set your own url for the frontend
       - MQTT_BROKER_URL=mqtt://mqtt-broker:1883
     depends_on:
       - mqtt-broker
