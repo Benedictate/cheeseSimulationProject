@@ -4,18 +4,18 @@ from helpers import *
 import sys
 
 # Open a file for writing
-log_file = open("cheese_sim_log.txt", "w")
+# log_file = open("cheese_sim_log.txt", "w")
 
 # Redirect stdout to the file
-sys.stdout = log_file
+# sys.stdout = log_file
 
 # Constants
 FLOW_RATE = 50.0
 MAX_FLOW_RATE = 181.5
 MELLOWING_TIME = 10
 SALT_RECIPE = 0.033
+TIMEMODE = 0
 SIMULATION_TIME = 6000
-TIMEMODE = TimeMode.ST
 BLOCK_WEIGHT = 27
 VAT_BATCH_SIZE = 10000
 BALDE_WEAR_RATE = 0.1
@@ -26,21 +26,8 @@ MAX_SLICES = int((MAX_FLOW_RATE * MELLOWING_TIME) / (FLOW_RATE * (MELLOWING_TIME
 GENERATION_INTERVAL = MELLOWING_TIME / MAX_SLICES
 SLICE_MASS = FLOW_RATE * GENERATION_INTERVAL
 
-def curd_generator(env, output_conveyor):
-    slice_id = 0
-    while slice_id<100:
-        slice_id += 1
-        curd_slice = {
-            'id': slice_id,
-            'mass': SLICE_MASS,
-            'salt': 0.0
-        }
-        print(f"[{env.now:.2f}] Generated curd slice {slice_id}")
-        yield output_conveyor.put(curd_slice)
-        yield env.timeout(GENERATION_INTERVAL)
-
-def main():
-    env = simpy.Environment()
+def main(TIMEMODE):
+    env = create_env(TIMEMODE, 60, True)
 
     # Create conveyors
     waste_store = simpy.Store(env)
