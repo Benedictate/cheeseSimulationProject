@@ -7,7 +7,7 @@ const router = express.Router();
  */
 function runPythonSim(inputData) {
   return new Promise((resolve, reject) => {
-    const py = spawn("python3", ["../sim.py"]); // adjust path to your sim script
+    const py = spawn("python3", ["../Main.py"]); // Adjust path if main.py is elsewhere
 
     let output = "";
     let errorOutput = "";
