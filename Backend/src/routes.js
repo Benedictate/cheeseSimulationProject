@@ -35,19 +35,21 @@ function runPythonSim(inputData) {
 }
 
 /**
- * Route 1: single binary spec (example: { "spec": 1 })
+ * Route 1: Single binary value
+ * Example: POST body = "1"
  */
-router.post("/binary", async (req, res) => {
+router.post("/binary", express.text(), async (req, res) => {
   try {
-    const { spec } = req.body;
-    if (typeof spec === "undefined") {
-      return res.status(400).json({ error: "Missing 'spec' value" });
+    const rawInput = req.body.trim();
+
+    // Validate input (must be 0 or 1)
+    if (!["0", "1"].includes(rawInput)) {
+      return res.status(400).json({ error: "Input must be '0' or '1'" });
     }
 
-    const result = await runPythonSim({ spec });
+    const result = await runPythonSim(rawInput);
     res.json({ success: true, result });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
