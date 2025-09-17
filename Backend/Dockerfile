@@ -1,20 +1,27 @@
-# Use an official Node runtime as a parent image
+# Use Node.js base image (includes npm)
 FROM node:20
 
-# Set the working directory
+# Install Python (Debian base is used by default for node:20)
+RUN apt-get update && apt-get install -y python3 python3-pip && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
 WORKDIR /app
 
-# Copy package.json and package-lock.json
-COPY src/routes/package*.json ./
-
-# Install dependencies
+# Copy package manifests and install Node dependencies
+COPY package*.json ./
 RUN npm install
 
-# Copy the rest of the application code
-COPY src/routes ./
+# Copy Node.js source
+COPY src ./src
 
-# Expose the port the app runs on
+# Copy Python simulation files
+COPY Main.py ./
+COPY __init__.py ./
+COPY helpers ./helpers
+COPY Machines ./Machines
+
+# Expose backend port
 EXPOSE 3001
 
-# Start the Node.js app
+# Start Node.js app
 CMD ["npm", "start"]
