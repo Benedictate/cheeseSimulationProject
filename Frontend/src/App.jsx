@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import PasteurizerControls from "./components/pasteurizerControls"
+import PasteurizerControls from "./components/PasteurizerControls"
 import ParameterSettings from "./components/ParameterSettings"
 import SimulationResults from "./components/SimulationResults"
 import "./App.css"
@@ -164,8 +164,8 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>🧀 Pasteurizer Simulation Control</h1>
-        <p>Real-time control and monitoring of the pasteurization process</p>
+        <h1>🧀 Manufacturing Simulation Control</h1>
+        <p>Real-time control and monitoring of the Manufacturing process</p>
 
         <div className="connection-status">
           <div className={`status-indicator ${connectionStatus}`}>

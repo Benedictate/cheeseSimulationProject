@@ -1,27 +1,26 @@
-# Use Node.js base image (includes npm)
-FROM node:20
+# Use Node 20 as base
+FROM node:20-bullseye
 
-# Install Python (Debian base is used by default for node:20)
+# Install Python 3 and pip
 RUN apt-get update && apt-get install -y python3 python3-pip && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
-# Copy package manifests and install Node dependencies
+# Copy package.json and package-lock.json first
 COPY package*.json ./
+
+# Install Node dependencies
 RUN npm install
 
-# Copy Node.js source
-COPY src ./src
+# Copy the rest of the backend code
+COPY . .
 
-# Copy Python simulation files
-COPY Main.py ./
-COPY __init__.py ./
-COPY helpers ./helpers
-COPY Machines ./Machines
+# Install Python dependencies
+RUN pip3 install simpy
 
-# Expose backend port
+# Expose the backend port
 EXPOSE 3001
 
-# Start Node.js app
+# Start backend
 CMD ["npm", "start"]
