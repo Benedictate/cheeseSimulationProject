@@ -44,7 +44,7 @@ function App() {
   // Check backend connection
   const checkConnection = async () => {
     try {
-      const response = await fetch("http://127.0.0.1:3001/api/health")
+      const response = await fetch("http://node-backend:3001/api/health")
       if (response.ok) {
         setConnectionStatus("connected")
         setError(null)
@@ -62,7 +62,7 @@ function App() {
     if (!simulationRunning) return
 
     try {
-      const response = await fetch("http://127.0.0.1:3001/api/simulation-status")
+      const response = await fetch("http://node-backend:3001/api/simulation-status")
       if (response.ok) {
         const data = await response.json()
         setSimulationRunning(data.running)
@@ -100,7 +100,7 @@ function App() {
     setError(null)
 
     try {
-      const response = await fetch("http://127.0.0.1:3001/api/start-simulation", {
+      const response = await fetch("http://node-backend/api/start-simulation", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -127,7 +127,7 @@ function App() {
     setIsLoading(true)
 
     try {
-      const response = await fetch("http://127.0.0.1:3001/api/stop-simulation", {
+      const response = await fetch("http://node-backend:3001/api/stop-simulation", {
         method: "POST",
       })
 
