@@ -7,14 +7,14 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // --- CORS Setup ---
-//const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
-//  ? process.env.CORS_ALLOWED_ORIGINS.split(",")
-//  : []; // split by comma if multiple origins
+const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
+  ? process.env.CORS_ALLOWED_ORIGINS.split(",")
+  : []; // split by comma if multiple origins
 
-//app.use(cors({
-//  origin: allowedOrigins,
-//  credentials: true, // allow cookies/auth headers if needed
-//}));
+app.use(cors({
+ origin: allowedOrigins,
+  credentials: true, // allow cookies/auth headers if needed
+}));
 
 // Middleware
 app.use(express.json());

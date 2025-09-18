@@ -36,6 +36,11 @@ function runPythonSim(inputData) {
 
 // Route 0: Health check route
 router.get("/health", (req, res) => {
+  res.removeHeader("ETag"); // make sure no ETag is set
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
+
   res.status(200).json({ status: "ok" });
 });
 

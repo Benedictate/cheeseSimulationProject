@@ -12,6 +12,7 @@ function App() {
   const [connectionStatus, setConnectionStatus] = useState("checking")
   const [error, setError] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
+  const backendUrl = process.env.REACT_APP_BACKEND_URL || "http://localhost:3001";
 
   // Default pasteurizer parameters based on your Python file
   const [parameters, setParameters] = useState({
@@ -44,7 +45,7 @@ function App() {
   // Check backend connection
   const checkConnection = async () => {
     try {
-      const response = await fetch("http://node-backend:3001/api/health")
+      const response = await fetch(`${backendUrl}/api/health`);
       if (response.ok) {
         setConnectionStatus("connected")
         setError(null)
@@ -62,7 +63,7 @@ function App() {
     if (!simulationRunning) return
 
     try {
-      const response = await fetch("http://node-backend:3001/api/simulation-status")
+      const response = await fetch(`${backendUrl}/api/simulation-status`)
       if (response.ok) {
         const data = await response.json()
         setSimulationRunning(data.running)
@@ -100,7 +101,7 @@ function App() {
     setError(null)
 
     try {
-      const response = await fetch("http://node-backend/api/start-simulation", {
+      const response = await fetch(`${backendUrl}/api/start-simulation`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -127,7 +128,7 @@ function App() {
     setIsLoading(true)
 
     try {
-      const response = await fetch("http://node-backend:3001/api/stop-simulation", {
+      const response = await fetch(`${backendUrl}/api/stop-simulation`, {
         method: "POST",
       })
 
