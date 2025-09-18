@@ -34,6 +34,11 @@ function runPythonSim(inputData) {
   });
 }
 
+// Route 0: Health check route
+router.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
 /**
  * Route 1: Single binary value
  * Example: POST body = "1"
