@@ -7,6 +7,14 @@ function PasteurizerControls({ simulationRunning, onStart, onStop, isLoading, co
 
       <div className="controls-grid">
         <button
+          onClick={onQuickSim}
+          disabled={simulationRunning || isLoading || connectionStatus !== "connected"}
+          className="btn btn- "
+        >
+          ⚡ Quick Sim
+        </button>
+
+        <button
           className={`btn ${simulationRunning ? "btn-secondary" : "btn-primary"}`}
           onClick={onStart}
           disabled={simulationRunning || isLoading || connectionStatus !== "connected"}

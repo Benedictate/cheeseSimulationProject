@@ -48,9 +48,9 @@ router.get("/health", (req, res) => {
  * Route 1: Single binary value
  * Example: POST body = "1"
  */
-router.post("/binary", express.text(), async (req, res) => {
+router.post("/quick", express.text(), async (req, res) => {
   try {
-    const rawInput = req.body.trim();
+    const rawInput = req.body;
 
     // Validate input (must be 0 or 1)
     if (!["0", "1"].includes(rawInput)) {

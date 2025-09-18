@@ -222,6 +222,22 @@ function ParameterSettings({ parameters, onParameterChange, onAnomalyChange, dis
             ))}
           </div>
         </div>
+
+        {/* Timescale */}
+        <div className="parameter-section">
+          <h3>🔘 Time Scale</h3>
+          <div className="parameter-item">
+            <label>Binary Flag</label>
+            <button
+              type="button"
+              onClick={() => handleInputChange("binaryFlag", parameters.binaryFlag === 1 ? 0 : 1)}
+              disabled={disabled}
+            >
+              {parameters.timeScale === 1 ? "REALTIME (1)" : "SIMTIME (0)"}
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
   )

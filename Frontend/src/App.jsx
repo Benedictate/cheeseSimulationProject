@@ -40,6 +40,8 @@ function App() {
       equipmentFailure: { enabled: false, probability: 0.05 },
       flowRateIssue: { enabled: false, probability: 0.08 },
     },
+
+    timeScale: 0,
   })
 
   // Check backend connection
@@ -95,6 +97,34 @@ function App() {
       if (statusInterval) clearInterval(statusInterval)
     }
   }, [simulationRunning])
+
+    // 🔹 Send binary parameter only
+const sendBinaryParameter = async () => {
+  setSimulationRunning(true);  
+  setIsLoading(true);
+  setError(null);
+
+  try {
+    const response = await fetch(`${backendUrl}/api/quick`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(parameters.timeScale), // sends just 0 or 1
+    });
+
+    if (!response.ok) throw new Error(`Backend error: ${response.status}`);
+
+    const result = await response.json();
+
+    setSimulationResults(result);  // display in SimulationResults
+    console.log("✅ Quick sim result:", result);
+  } catch (err) {
+    console.error("❌ Error sending timeScale param:", err);
+    setError("Error sending timeScale parameter, check console");
+  } finally {
+    setSimulationRunning(false);
+    setIsLoading(false);
+  }
+};
 
   const startSimulation = async () => {
     setIsLoading(true)
@@ -189,6 +219,7 @@ function App() {
 
         <PasteurizerControls
           simulationRunning={simulationRunning}
+          onQuick={sendBinaryParameter} 
           onStart={startSimulation}
           onStop={stopSimulation}
           isLoading={isLoading}
