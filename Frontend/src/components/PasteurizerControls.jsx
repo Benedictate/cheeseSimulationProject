@@ -1,61 +1,34 @@
 "use client"
 
-import { useState } from "react"
-
-function PasteurizerControls({ simulationRunning, onStart, onStop, isLoading, connectionStatus }) {
-  const [timeScale, setTimeScale] = useState(false) // false = simtime (0), true = realtime (1)
-
-  const handleQuickSim = async () => {
-    const timeMode = timeScale ? "1" : "0"
-
-    try {
-      console.log(`🚀 Starting quick simulation with timeMode: ${timeMode}`)
-
-      const response = await fetch("http://localhost:3001/api/quick", {
-        method: "POST",
-        headers: {
-          "Content-Type": "text/plain",
-        },
-        body: timeMode,
-      })
-
-      const data = await response.json()
-
-      if (data.success) {
-        console.log("✅ Quick simulation completed:", data.result)
-        alert(
-          `Simulation completed!\n\nTimeMode: ${timeMode} (${timeScale ? "Real-time" : "Simulation-time"})\n\nCheck console for full results.`,
-        )
-      } else {
-        console.error("❌ Simulation failed:", data.error)
-        alert(`Simulation failed: ${data.error}`)
-      }
-    } catch (error) {
-      console.error("❌ Network error:", error)
-      alert(`Network error: ${error.message}`)
-    }
-  }
-
+function PasteurizerControls({
+  simulationRunning,
+  onStart,
+  onStop,
+  isLoading,
+  connectionStatus,
+  timeMode,
+  onTimeModeChange,
+}) {
   return (
     <div className="card">
       <h2>Simulation Controls</h2>
 
-      {/* Time Scale Toggle */}
+      {/* Time Scale Toggle - now controlled by parent */}
       <div className="time-scale-section">
         <h3>Time Scale Setting</h3>
         <div className="toggle-container">
           <label className="toggle-label">
             <input
               type="checkbox"
-              checked={timeScale}
-              onChange={(e) => setTimeScale(e.target.checked)}
-              disabled={isLoading}
+              checked={timeMode}
+              onChange={(e) => onTimeModeChange(e.target.checked)}
+              disabled={isLoading || simulationRunning}
             />
-            <span className="toggle-text">{timeScale ? "🕐 Real-time (1)" : "⚡ Simulation-time (0)"}</span>
+            <span className="toggle-text">{timeMode ? "🕐 Real-time (1)" : "⚡ Simulation-time (0)"}</span>
           </label>
         </div>
         <p className="toggle-description">
-          {timeScale
+          {timeMode
             ? "Real-time mode: Simulation runs at actual speed"
             : "Simulation-time mode: Simulation runs as fast as possible"}
         </p>
@@ -64,10 +37,10 @@ function PasteurizerControls({ simulationRunning, onStart, onStop, isLoading, co
       <div className="controls-grid">
         <button
           className={`btn ${isLoading ? "btn-secondary" : "btn-primary"}`}
-          onClick={handleQuickSim}
-          disabled={isLoading || connectionStatus !== "connected"}
+          onClick={onStart}
+          disabled={isLoading || connectionStatus !== "connected" || simulationRunning}
         >
-          {isLoading ? "⏳ Running..." : "🚀 Start Quick Simulation"}
+          {isLoading ? "⏳ Running..." : "🚀 Start Simulation"}
         </button>
 
         <button className="btn btn-error" onClick={onStop} disabled={!simulationRunning || isLoading}>
@@ -79,6 +52,9 @@ function PasteurizerControls({ simulationRunning, onStart, onStop, isLoading, co
         <div className={`simulation-status ${simulationRunning ? "running" : "stopped"}`}>
           <div className="status-dot"></div>
           <span>{simulationRunning ? "Simulation Running" : "Simulation Stopped"}</span>
+        </div>
+        <div className="time-mode-display">
+          <span>Mode: {timeMode ? "Real-time" : "Simulation-time"}</span>
         </div>
       </div>
 
@@ -132,6 +108,16 @@ function PasteurizerControls({ simulationRunning, onStart, onStop, isLoading, co
           color: #6b7280;
           margin: 0;
           font-style: italic;
+        }
+
+        .time-mode-display {
+          margin-left: 1rem;
+          padding: 0.25rem 0.75rem;
+          background-color: #f1f5f9;
+          border-radius: 0.375rem;
+          font-size: 0.875rem;
+          font-weight: 500;
+          color: #475569;
         }
       `}</style>
     </div>

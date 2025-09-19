@@ -12,7 +12,8 @@ function App() {
   const [connectionStatus, setConnectionStatus] = useState("checking")
   const [error, setError] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
-  const backendUrl = process.env.REACT_APP_BACKEND_URL || "http://localhost:3001";
+  const [timeMode, setTimeMode] = useState(false) // false = simulation-time (0), true = real-time (1)
+  const backendUrl = process.env.REACT_APP_BACKEND_URL || "http://localhost:3001"
 
   // Default pasteurizer parameters based on your Python file
   const [parameters, setParameters] = useState({
@@ -45,7 +46,7 @@ function App() {
   // Check backend connection
   const checkConnection = async () => {
     try {
-      const response = await fetch(`${backendUrl}/api/health`);
+      const response = await fetch(`${backendUrl}/api/health`)
       if (response.ok) {
         setConnectionStatus("connected")
         setError(null)
@@ -99,26 +100,37 @@ function App() {
   const startSimulation = async () => {
     setIsLoading(true)
     setError(null)
+    setSimulationResults(null) // Clear previous results
 
     try {
-      const response = await fetch(`${backendUrl}/api/start-simulation`, {
+      const timeValue = timeMode ? "1" : "0"
+      console.log(`🚀 Starting simulation with timeMode: ${timeValue}`)
+
+      const response = await fetch(`${backendUrl}/api/quick`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type": "text/plain",
         },
-        body: JSON.stringify(parameters),
+        body: timeValue,
       })
 
       const data = await response.json()
 
       if (data.success) {
-        setSimulationRunning(true)
-        setSimulationResults(null)
+        console.log("✅ Simulation completed:", data.result)
+        setSimulationRunning(false) // Since it's a quick simulation, it completes immediately
+        setSimulationResults({
+          completed: true,
+          raw_output: data.result,
+          timeMode: timeValue,
+          timestamp: new Date().toISOString(),
+        })
       } else {
-        setError(data.message)
+        setError(data.error || "Simulation failed")
       }
     } catch (err) {
-      setError(`Failed to start simulation: ${err.message}`)
+      console.error("❌ Network error:", err)
+      setError(`Network error: ${err.message}`)
     } finally {
       setIsLoading(false)
     }
@@ -162,6 +174,10 @@ function App() {
     }))
   }
 
+  const handleTimeModeChange = (newTimeMode) => {
+    setTimeMode(newTimeMode)
+  }
+
   return (
     <div className="app">
       <header className="app-header">
@@ -193,6 +209,8 @@ function App() {
           onStop={stopSimulation}
           isLoading={isLoading}
           connectionStatus={connectionStatus}
+          timeMode={timeMode}
+          onTimeModeChange={handleTimeModeChange}
         />
 
         <ParameterSettings
