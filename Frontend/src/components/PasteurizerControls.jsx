@@ -1,18 +1,11 @@
 "use client"
 
-function PasteurizerControls({ simulationRunning, onStart, onStop, onQuickSim, isLoading, connectionStatus }) {
+function PasteurizerControls({ simulationRunning, onStart, onStop, isLoading, connectionStatus }) {
   return (
     <div className="card">
       <h2>Simulation Controls</h2>
 
       <div className="controls-grid">
-        <button
-          onClick={onQuickSim}
-          disabled={simulationRunning || isLoading || connectionStatus !== "connected"}
-          className="btn btn- "
-        >
-          ⚡ Quick Sim
-        </button>
 
         <button
           className={`btn ${simulationRunning ? "btn-secondary" : "btn-primary"}`}
