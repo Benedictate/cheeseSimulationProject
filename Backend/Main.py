@@ -2,6 +2,8 @@ import simpy
 from Machines import *
 from helpers import *
 import sys
+import json
+import time
 
 # Constants
 FLOW_RATE = 50.0
@@ -90,6 +92,36 @@ def main(TIMEMODE):
     # Run ripener
     ripener = Ripener.run(env, ripener_input)
 
+    def progress_reporter():
+        """Report simulation progress periodically for real-time mode"""
+        while env.now < SIMULATION_TIME:
+            yield env.timeout(100)  # Report every 100 time units
+            progress = (env.now / SIMULATION_TIME) * 100
+            
+            progress_data = {
+                "timestamp": time.time(),
+                "simulation_time": env.now,
+                "progress_percent": round(progress, 1),
+                "max_time": SIMULATION_TIME,
+                "machine_states": {
+                    "pasteuriser_output": len(pasteuriser_output.items),
+                    "vat_output": len(vat_output.items),
+                    "cutter_output": len(cutter_output.items),
+                    "salting_input": f"{len(salting_input.items)}/{salting_input.capacity}",
+                    "salting_output": len(salting_output.items),
+                    "presser_output": len(presser_output.items)
+                }
+            }
+            
+            print(json.dumps(progress_data))
+            
+            # Also print human-readable format for debugging
+            print(f"⏱️ Simulation Progress: {progress:.1f}% (Time: {env.now}/{SIMULATION_TIME})")
+
+    # Start progress reporter for real-time mode
+    if TIMEMODE == 1:
+        env.process(progress_reporter())
+
     # Run sim
     print(f"🏃 Running simulation for {SIMULATION_TIME} time units...")
     env.run(until=SIMULATION_TIME)
@@ -98,8 +130,24 @@ def main(TIMEMODE):
     salting_machine.save_observations_to_json()
     curd_cutter.save_logs("data")
     
+    final_results = {
+        "status": "completed",
+        "timestamp": time.time(),
+        "simulation_time": SIMULATION_TIME,
+        "timemode": TIMEMODE,
+        "final_machine_states": {
+            "pasteuriser_output": len(pasteuriser_output.items),
+            "vat_output": len(vat_output.items),
+            "cutter_output": len(cutter_output.items),
+            "salting_output": len(salting_output.items),
+            "presser_output": len(presser_output.items),
+            "ripener_input": len(ripener_input.items)
+        }
+    }
+    
     print("✅ Simulation completed successfully!")
     print(f"📈 Results saved to data files")
+    print(json.dumps(final_results))
 
 if __name__ == "__main__":
     # Get TIMEMODE from command line argument, default to 0

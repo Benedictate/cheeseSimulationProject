@@ -3,6 +3,8 @@ const { spawn } = require("child_process")
 const path = require("path")
 const router = express.Router()
 
+let currentSimulationProcess = null
+
 /**
  * Utility function to call Python sim and return a promise
  */
@@ -38,6 +40,41 @@ function runPythonSim(inputData) {
   })
 }
 
+function runPythonSimStreaming(inputData, onData, onComplete, onError) {
+  const pythonScriptPath = path.join(__dirname, "..", "Main.py")
+  console.log(`🐍 Running Python script with streaming at: ${pythonScriptPath}`)
+
+  const py = spawn("python3", [pythonScriptPath, inputData])
+  currentSimulationProcess = py
+
+  let output = ""
+  let errorOutput = ""
+
+  py.stdout.on("data", (data) => {
+    const chunk = data.toString()
+    output += chunk
+    // Send each line of output as it comes
+    const lines = chunk.split("\n").filter((line) => line.trim())
+    lines.forEach((line) => onData(line))
+  })
+
+  py.stderr.on("data", (data) => {
+    errorOutput += data.toString()
+  })
+
+  py.on("close", (code) => {
+    currentSimulationProcess = null
+    if (code !== 0) {
+      onError(new Error(`Python process exited with code ${code}: ${errorOutput}`))
+    } else {
+      onComplete(output.trim())
+    }
+  })
+
+  py.stdin.end()
+  return py
+}
+
 // Route 0: Health check route
 router.get("/health", (req, res) => {
   res.removeHeader("ETag")
@@ -63,8 +100,36 @@ router.post("/quick", express.text(), async (req, res) => {
 
     console.log(`🚀 Starting quick simulation with timeMode: ${rawInput}`)
 
-    const result = await runPythonSim(rawInput)
-    res.json({ success: true, result })
+    if (rawInput === "1") {
+      // Real-time mode - use streaming
+      res.writeHead(200, {
+        "Content-Type": "text/plain",
+        "Transfer-Encoding": "chunked",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      })
+
+      runPythonSimStreaming(
+        rawInput,
+        (data) => {
+          // Send each line of data as it comes
+          res.write(`data: ${JSON.stringify({ type: "progress", data: data })}\n\n`)
+        },
+        (finalResult) => {
+          // Send completion signal
+          res.write(`data: ${JSON.stringify({ type: "complete", result: finalResult })}\n\n`)
+          res.end()
+        },
+        (error) => {
+          res.write(`data: ${JSON.stringify({ type: "error", error: error.message })}\n\n`)
+          res.end()
+        },
+      )
+    } else {
+      // Simulation time mode - use regular approach
+      const result = await runPythonSim(rawInput)
+      res.json({ success: true, result })
+    }
   } catch (err) {
     console.error("Quick sim error:", err)
     res.status(500).json({ success: false, error: err.message })
@@ -106,6 +171,29 @@ router.post("/settings", async (req, res) => {
     console.error(err)
     res.status(500).json({ success: false, error: err.message })
   }
+})
+
+router.post("/stop-simulation", (req, res) => {
+  try {
+    if (currentSimulationProcess) {
+      console.log("🛑 Stopping simulation process...")
+      currentSimulationProcess.kill("SIGTERM")
+      currentSimulationProcess = null
+      res.json({ success: true, message: "Simulation stopped" })
+    } else {
+      res.json({ success: false, message: "No simulation running" })
+    }
+  } catch (err) {
+    console.error("Error stopping simulation:", err)
+    res.status(500).json({ success: false, error: err.message })
+  }
+})
+
+router.get("/simulation-status", (req, res) => {
+  res.json({
+    running: currentSimulationProcess !== null,
+    pid: currentSimulationProcess ? currentSimulationProcess.pid : null,
+  })
 })
 
 module.exports = router

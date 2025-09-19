@@ -13,6 +13,7 @@ function App() {
   const [error, setError] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
   const [timeMode, setTimeMode] = useState(false) // false = simulation-time (0), true = real-time (1)
+  const [streamingData, setStreamingData] = useState([])
   const backendUrl = process.env.REACT_APP_BACKEND_URL || "http://localhost:3001"
 
   // Default pasteurizer parameters based on your Python file
@@ -101,37 +102,110 @@ function App() {
     setIsLoading(true)
     setError(null)
     setSimulationResults(null) // Clear previous results
+    setStreamingData([])
 
     try {
       const timeValue = timeMode ? "1" : "0"
       console.log(`🚀 Starting simulation with timeMode: ${timeValue}`)
 
-      const response = await fetch(`${backendUrl}/api/quick`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "text/plain",
-        },
-        body: timeValue,
-      })
+      if (timeValue === "1") {
+        setSimulationRunning(true)
+        setIsLoading(false)
 
-      const data = await response.json()
-
-      if (data.success) {
-        console.log("✅ Simulation completed:", data.result)
-        setSimulationRunning(false) // Since it's a quick simulation, it completes immediately
-        setSimulationResults({
-          completed: true,
-          raw_output: data.result,
-          timeMode: timeValue,
-          timestamp: new Date().toISOString(),
+        const response = await fetch(`${backendUrl}/api/quick`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "text/plain",
+          },
+          body: timeValue,
         })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+
+            const chunk = decoder.decode(value)
+            const lines = chunk.split("\n").filter((line) => line.trim())
+
+            for (const line of lines) {
+              if (line.startsWith("data: ")) {
+                try {
+                  const data = JSON.parse(line.slice(6))
+
+                  if (data.type === "progress") {
+                    console.log("[v0] Streaming data:", data.data)
+                    setStreamingData((prev) => [...prev, data.data])
+                  } else if (data.type === "complete") {
+                    console.log("[v0] Simulation completed:", data.result)
+                    setSimulationRunning(false)
+                    setSimulationResults({
+                      completed: true,
+                      raw_output: data.result,
+                      timeMode: timeValue,
+                      timestamp: new Date().toISOString(),
+                      streaming_data: streamingData,
+                    })
+                  } else if (data.type === "error") {
+                    setError(data.error)
+                    setSimulationRunning(false)
+                  } else if (data.type === "stopped") {
+                    console.log("[v0] Simulation manually stopped")
+                    setSimulationRunning(false)
+                    setSimulationResults({
+                      completed: false,
+                      stopped: true,
+                      raw_output: data.result || "Simulation stopped by user",
+                      timeMode: timeValue,
+                      timestamp: new Date().toISOString(),
+                      streaming_data: streamingData,
+                    })
+                  }
+                } catch (parseError) {
+                  console.error("[v0] Error parsing streaming data:", parseError)
+                }
+              }
+            }
+          }
+        } finally {
+          reader.releaseLock()
+        }
       } else {
-        setError(data.error || "Simulation failed")
+        const response = await fetch(`${backendUrl}/api/quick`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "text/plain",
+          },
+          body: timeValue,
+        })
+
+        const data = await response.json()
+
+        if (data.success) {
+          console.log("✅ Simulation completed:", data.result)
+          setSimulationRunning(false)
+          setSimulationResults({
+            completed: true,
+            raw_output: data.result,
+            timeMode: timeValue,
+            timestamp: new Date().toISOString(),
+          })
+        } else {
+          setError(data.error || "Simulation failed")
+        }
+        setIsLoading(false)
       }
     } catch (err) {
       console.error("❌ Network error:", err)
       setError(`Network error: ${err.message}`)
-    } finally {
+      setSimulationRunning(false)
       setIsLoading(false)
     }
   }
@@ -146,6 +220,7 @@ function App() {
 
       if (response.ok) {
         setSimulationRunning(false)
+        console.log("[v0] Stop simulation request sent")
       }
     } catch (err) {
       setError(`Failed to stop simulation: ${err.message}`)
@@ -220,7 +295,12 @@ function App() {
           disabled={simulationRunning}
         />
 
-        <SimulationResults results={simulationResults} isRunning={simulationRunning} />
+        <SimulationResults
+          results={simulationResults}
+          isRunning={simulationRunning}
+          streamingData={streamingData}
+          timeMode={timeMode}
+        />
       </main>
     </div>
   )
