@@ -53,22 +53,40 @@ function runPythonSimStreaming(inputData, onData, onComplete, onError) {
   py.stdout.on("data", (data) => {
     const chunk = data.toString()
     output += chunk
-    // Send each line of output as it comes
     const lines = chunk.split("\n").filter((line) => line.trim())
-    lines.forEach((line) => onData(line))
+    lines.forEach((line) => {
+      try {
+        // Try to parse as JSON first
+        const jsonData = JSON.parse(line)
+        onData(JSON.stringify(jsonData))
+      } catch (e) {
+        // If not JSON, send as plain text for debugging
+        if (line.includes("Progress:") || line.includes("Simulation") || line.includes("🧀") || line.includes("⏱️")) {
+          onData(line)
+        }
+      }
+    })
   })
 
   py.stderr.on("data", (data) => {
     errorOutput += data.toString()
+    console.error("Python stderr:", data.toString())
   })
 
   py.on("close", (code) => {
     currentSimulationProcess = null
-    if (code !== 0) {
+    console.log(`Python process closed with code: ${code}`)
+    if (code !== 0 && code !== null) {
       onError(new Error(`Python process exited with code ${code}: ${errorOutput}`))
     } else {
       onComplete(output.trim())
     }
+  })
+
+  py.on("error", (error) => {
+    console.error("Python process error:", error)
+    currentSimulationProcess = null
+    onError(error)
   })
 
   py.stdin.end()
@@ -177,7 +195,7 @@ router.post("/stop-simulation", (req, res) => {
   try {
     if (currentSimulationProcess) {
       console.log("🛑 Stopping simulation process...")
-      currentSimulationProcess.kill("SIGTERM")
+      currentSimulationProcess.kill("SIGKILL")
       currentSimulationProcess = null
       res.json({ success: true, message: "Simulation stopped" })
     } else {
