@@ -1,20 +1,13 @@
 import simpy
-from machines import *
+from Machines import *
 from helpers import *
 import sys
-
-# Open a file for writing
-# log_file = open("cheese_sim_log.txt", "w")
-
-# Redirect stdout to the file
-# sys.stdout = log_file
 
 # Constants
 FLOW_RATE = 50.0
 MAX_FLOW_RATE = 181.5
 MELLOWING_TIME = 10
 SALT_RECIPE = 0.033
-TIMEMODE = 0
 SIMULATION_TIME = 6000
 BLOCK_WEIGHT = 27
 VAT_BATCH_SIZE = 10000
@@ -27,6 +20,9 @@ GENERATION_INTERVAL = MELLOWING_TIME / MAX_SLICES
 SLICE_MASS = FLOW_RATE * GENERATION_INTERVAL
 
 def main(TIMEMODE):
+    print(f"🧀 Starting cheese simulation with TIMEMODE: {TIMEMODE}")
+    print(f"📊 TIMEMODE {TIMEMODE}: {'Real-time' if TIMEMODE == 1 else 'Simulation-time'}")
+    
     env = create_env(TIMEMODE, 60, True)
 
     # Create conveyors
@@ -48,9 +44,7 @@ def main(TIMEMODE):
     ripener_input = simpy.Store(env)
 
     pasteuriser_input.items = [50000]
-    '''
-    machines running in sequence with their respective helper functions
-    '''
+    
     # Run pasteuriser
     pasteuriser = Pasteuriser.run(env, pasteuriser_input, pasteuriser_output, waste_store)
     
@@ -97,11 +91,17 @@ def main(TIMEMODE):
     ripener = Ripener.run(env, ripener_input)
 
     # Run sim
+    print(f"🏃 Running simulation for {SIMULATION_TIME} time units...")
     env.run(until=SIMULATION_TIME)
 
     # Save logs
     salting_machine.save_observations_to_json()
     curd_cutter.save_logs("data")
-if __name__ == "__main__":
-    main()
     
+    print("✅ Simulation completed successfully!")
+    print(f"📈 Results saved to data files")
+
+if __name__ == "__main__":
+    # Get TIMEMODE from command line argument, default to 0
+    timemode = int(sys.argv[1]) if len(sys.argv) > 1 else 0
+    main(timemode)

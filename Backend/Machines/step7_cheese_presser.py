@@ -1,7 +1,6 @@
 import simpy
 import random
 import json
-import pandas as pd  # display results in table and save files
 from datetime import datetime
 
 #simulation
