@@ -99,32 +99,32 @@ function App() {
   }, [simulationRunning])
 
     // 🔹 Send binary parameter only
-const sendBinaryParameter = async () => {
-  setSimulationRunning(true);  
-  setIsLoading(true);
-  setError(null);
+  const sendBinaryParameter = async () => {
+    setSimulationRunning(true);  
+    setIsLoading(true);
+    setError(null);
 
-  try {
-    const response = await fetch(`${backendUrl}/api/quick`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(parameters.timeScale), // sends just 0 or 1
-    });
+    try {
+      const response = await fetch(`${backendUrl}/api/quick`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parameters.timeScale), // sends just 0 or 1
+      });
 
-    if (!response.ok) throw new Error(`Backend error: ${response.status}`);
+      if (!response.ok) throw new Error(`Backend error: ${response.status}`);
 
-    const result = await response.json();
+      const result = await response.json();
 
-    setSimulationResults(result);  // display in SimulationResults
-    console.log("✅ Quick sim result:", result);
-  } catch (err) {
-    console.error("❌ Error sending timeScale param:", err);
-    setError("Error sending timeScale parameter, check console");
-  } finally {
-    setSimulationRunning(false);
-    setIsLoading(false);
-  }
-};
+      setSimulationResults(result);  // display in SimulationResults
+      console.log("✅ Quick sim result:", result);
+    } catch (err) {
+      console.error("❌ Error sending timeScale param:", err);
+      setError("Error sending timeScale parameter, check console");
+    } finally {
+      setSimulationRunning(false);
+      setIsLoading(false);
+    }
+  };
 
   const startSimulation = async () => {
     setIsLoading(true)
@@ -219,7 +219,7 @@ const sendBinaryParameter = async () => {
 
         <PasteurizerControls
           simulationRunning={simulationRunning}
-          onQuick={sendBinaryParameter} 
+          onQuickSim={sendBinaryParameter} 
           onStart={startSimulation}
           onStop={stopSimulation}
           isLoading={isLoading}

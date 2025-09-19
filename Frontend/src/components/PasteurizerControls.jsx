@@ -1,6 +1,6 @@
 "use client"
 
-function PasteurizerControls({ simulationRunning, onStart, onStop, isLoading, connectionStatus }) {
+function PasteurizerControls({ simulationRunning, onStart, onStop, onQuickSim, isLoading, connectionStatus }) {
   return (
     <div className="card">
       <h2>Simulation Controls</h2>
