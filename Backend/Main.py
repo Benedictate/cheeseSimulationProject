@@ -4,6 +4,7 @@ from helpers import *
 import sys
 import json
 import time
+import threading
 
 # Constants
 FLOW_RATE = 50.0
@@ -94,37 +95,67 @@ def main(TIMEMODE):
 
     def progress_reporter():
         """Report simulation progress periodically for real-time mode"""
-        while env.now < SIMULATION_TIME:
-            yield env.timeout(100)  # Report every 100 time units
-            progress = (env.now / SIMULATION_TIME) * 100
+        machine_names = [
+            "Pasteuriser", "Cheese Vat", "Curd Cutter", "Whey Drainer", 
+            "Cheddaring Machine", "Salting Machine", "Cheese Presser", "Ripener"
+        ]
+        machine_outputs = [
+            pasteuriser_output, vat_output, cutter_output, whey_output,
+            cheddaring_output, salting_output, presser_output, ripener_input
+        ]
+        
+        if TIMEMODE == 1:  # Real-time mode - let simulation run normally, just output data
+            yield env.timeout(10)  # Small delay to let simulation start
             
-            progress_data = {
-                "timestamp": time.time(),
-                "simulation_time": env.now,
-                "progress_percent": round(progress, 1),
-                "max_time": SIMULATION_TIME,
-                "machine_states": {
-                    "pasteuriser_output": len(pasteuriser_output.items),
-                    "vat_output": len(vat_output.items),
-                    "cutter_output": len(cutter_output.items),
-                    "salting_input": f"{len(salting_input.items)}/{salting_input.capacity}",
-                    "salting_output": len(salting_output.items),
-                    "presser_output": len(presser_output.items)
+            # Output all machine data at once - the Node.js backend will queue it
+            for machine_index in range(len(machine_names)):
+                machine_data = {
+                    "timestamp": time.time(),
+                    "simulation_time": env.now,
+                    "machine_name": machine_names[machine_index],
+                    "machine_output": len(machine_outputs[machine_index].items) if machine_index < len(machine_outputs) else 0,
+                    "progress_percent": round(((machine_index + 1) / len(machine_names)) * 100, 1),
+                    "max_machines": len(machine_names),
+                    "type": "machine_output",
+                    "status": "processing"
                 }
-            }
-            
-            print(json.dumps(progress_data))
-            
-            # Also print human-readable format for debugging
-            print(f"⏱️ Simulation Progress: {progress:.1f}% (Time: {env.now}/{SIMULATION_TIME})")
+                
+                print(json.dumps(machine_data))
+                print(f"⏱️ Machine Output: {machine_names[machine_index]} - Processing")
+                
+        else:
+            # Simulation time mode - report every 100 time units
+            while env.now < SIMULATION_TIME:
+                progress = (env.now / SIMULATION_TIME) * 100
+                
+                progress_data = {
+                    "timestamp": time.time(),
+                    "simulation_time": env.now,
+                    "progress_percent": round(progress, 1),
+                    "max_time": SIMULATION_TIME,
+                    "machine_states": {
+                        "pasteuriser_output": len(pasteuriser_output.items),
+                        "vat_output": len(vat_output.items),
+                        "cutter_output": len(cutter_output.items),
+                        "salting_input": f"{len(salting_input.items)}/{salting_input.capacity}",
+                        "salting_output": len(salting_output.items),
+                        "presser_output": len(presser_output.items)
+                    }
+                }
+                
+                print(json.dumps(progress_data))
+                print(f"⏱️ Simulation Progress: {progress:.1f}% (Time: {env.now}/{SIMULATION_TIME})")
+                
+                yield env.timeout(100)
 
-    # Start progress reporter for real-time mode
-    if TIMEMODE == 1:
-        env.process(progress_reporter())
+    # Start progress reporter for both modes
+    env.process(progress_reporter())
 
+    simulation_duration = SIMULATION_TIME
+    
     # Run sim
-    print(f"🏃 Running simulation for {SIMULATION_TIME} time units...")
-    env.run(until=SIMULATION_TIME)
+    print(f"🏃 Running simulation for {simulation_duration} time units...")
+    env.run(until=simulation_duration)
 
     # Save logs
     salting_machine.save_observations_to_json()

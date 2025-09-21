@@ -4,6 +4,8 @@ const path = require("path")
 const router = express.Router()
 
 let currentSimulationProcess = null
+let machineDataQueue = []
+let queueInterval = null
 
 /**
  * Utility function to call Python sim and return a promise
@@ -40,6 +42,27 @@ function runPythonSim(inputData) {
   })
 }
 
+function startQueueProcessor(onData) {
+  console.log("🕐 Starting queue processor - releasing data every 2 minutes")
+
+  queueInterval = setInterval(() => {
+    if (machineDataQueue.length > 0) {
+      const dataToSend = machineDataQueue.shift()
+      console.log(`📤 Releasing queued data: ${dataToSend.machine_name}`)
+      onData(JSON.stringify(dataToSend))
+    }
+  }, 120000) // 2 minutes = 120,000 milliseconds
+}
+
+function stopQueueProcessor() {
+  if (queueInterval) {
+    clearInterval(queueInterval)
+    queueInterval = null
+    machineDataQueue = []
+    console.log("🛑 Queue processor stopped and cleared")
+  }
+}
+
 function runPythonSimStreaming(inputData, onData, onComplete, onError) {
   const pythonScriptPath = path.join(__dirname, "..", "Main.py")
   console.log(`🐍 Running Python script with streaming at: ${pythonScriptPath}`)
@@ -49,6 +72,11 @@ function runPythonSimStreaming(inputData, onData, onComplete, onError) {
 
   let output = ""
   let errorOutput = ""
+  let wasStopped = false // Track if simulation was manually stopped
+
+  if (inputData === "1") {
+    startQueueProcessor(onData)
+  }
 
   py.stdout.on("data", (data) => {
     const chunk = data.toString()
@@ -58,7 +86,14 @@ function runPythonSimStreaming(inputData, onData, onComplete, onError) {
       try {
         // Try to parse as JSON first
         const jsonData = JSON.parse(line)
-        onData(JSON.stringify(jsonData))
+
+        if (inputData === "1" && jsonData.type === "machine_output") {
+          console.log(`📥 Queuing machine data: ${jsonData.machine_name}`)
+          machineDataQueue.push(jsonData)
+        } else {
+          // For simulation mode or non-machine data, send immediately
+          onData(JSON.stringify(jsonData))
+        }
       } catch (e) {
         // If not JSON, send as plain text for debugging
         if (line.includes("Progress:") || line.includes("Simulation") || line.includes("🧀") || line.includes("⏱️")) {
@@ -76,9 +111,17 @@ function runPythonSimStreaming(inputData, onData, onComplete, onError) {
   py.on("close", (code) => {
     currentSimulationProcess = null
     console.log(`Python process closed with code: ${code}`)
-    if (code !== 0 && code !== null) {
+
+    stopQueueProcessor()
+
+    if (wasStopped) {
+      // Process was manually stopped
+      onComplete(JSON.stringify({ status: "stopped", message: "Simulation stopped by user" }))
+    } else if (code !== 0 && code !== null) {
+      // Process exited with error
       onError(new Error(`Python process exited with code ${code}: ${errorOutput}`))
     } else {
+      // Process completed normally
       onComplete(output.trim())
     }
   })
@@ -86,8 +129,14 @@ function runPythonSimStreaming(inputData, onData, onComplete, onError) {
   py.on("error", (error) => {
     console.error("Python process error:", error)
     currentSimulationProcess = null
+    stopQueueProcessor()
     onError(error)
   })
+
+  py.wasStopped = () => wasStopped
+  py.markAsStopped = () => {
+    wasStopped = true
+  }
 
   py.stdin.end()
   return py
@@ -119,7 +168,7 @@ router.post("/quick", express.text(), async (req, res) => {
     console.log(`🚀 Starting quick simulation with timeMode: ${rawInput}`)
 
     if (rawInput === "1") {
-      // Real-time mode - use streaming
+      // Real-time mode - use streaming with queue
       res.writeHead(200, {
         "Content-Type": "text/plain",
         "Transfer-Encoding": "chunked",
@@ -127,10 +176,14 @@ router.post("/quick", express.text(), async (req, res) => {
         Connection: "keep-alive",
       })
 
+      res.write(
+        `data: ${JSON.stringify({ type: "info", message: "Real-time mode: Machine data will be released every 2 minutes" })}\n\n`,
+      )
+
       runPythonSimStreaming(
         rawInput,
         (data) => {
-          // Send each line of data as it comes
+          // Send each line of data as it comes (now queued for machine data)
           res.write(`data: ${JSON.stringify({ type: "progress", data: data })}\n\n`)
         },
         (finalResult) => {
@@ -195,8 +248,12 @@ router.post("/stop-simulation", (req, res) => {
   try {
     if (currentSimulationProcess) {
       console.log("🛑 Stopping simulation process...")
+      if (currentSimulationProcess.markAsStopped) {
+        currentSimulationProcess.markAsStopped()
+      }
       currentSimulationProcess.kill("SIGKILL")
       currentSimulationProcess = null
+      stopQueueProcessor()
       res.json({ success: true, message: "Simulation stopped" })
     } else {
       res.json({ success: false, message: "No simulation running" })
