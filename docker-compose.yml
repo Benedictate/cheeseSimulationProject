@@ -2,25 +2,26 @@ services:
   react-app:
     build: ./Frontend
     ports:
-      - "5000:5000"
-    depends_on:
-      - node-backend
+      - "5000:3000"
+    environment:
+      - REACT_APP_BACKEND_URL=http://node-backend:3001
+
 
   node-backend:
     build: ./Backend
     ports:
       - "3001:3001"
     environment:
-      - CORS_ALLOWED_ORIGINS=http://localhost:5000 #change if you set your own url for the frontend
+      - CORS_ALLOWED_ORIGINS=http://localhost:5000 # only allows frontend inputs, needs extra config for multiple origins
       - MQTT_BROKER_URL=mqtt://mqtt-broker:1883
     depends_on:
       - mqtt-broker
 
   mqtt-broker:
-    image: eclipse-mosquitto:2
+    image: eclipse-mosquitto:2.0
     ports:
-      - "1883:1883"   # MQTT protocol
-      #- "9001:9001"    WebSocket support (optional)
+      - "1883:1883"
+      - "9001:9001" # optional WebSocket support
     volumes:
       - ./mosquitto/config:/mosquitto/config
       - ./mosquitto/data:/mosquitto/data

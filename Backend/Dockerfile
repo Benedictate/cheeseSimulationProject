@@ -1,20 +1,26 @@
-# Use an official Node runtime as a parent image
-FROM node:20
+# Use Node 20 as base
+FROM node:20-bullseye
 
-# Set the working directory
+# Install Python 3 and pip
+RUN apt-get update && apt-get install -y python3 python3-pip && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
 WORKDIR /app
 
-# Copy package.json and package-lock.json
-COPY src/routes/package*.json ./
+# Copy package.json and package-lock.json first
+COPY package*.json ./
 
-# Install dependencies
+# Install Node dependencies
 RUN npm install
 
-# Copy the rest of the application code
-COPY src/routes ./
+# Copy the rest of the backend code
+COPY . .
 
-# Expose the port the app runs on
+# Install Python dependencies
+RUN pip3 install simpy
+
+# Expose the backend port
 EXPOSE 3001
 
-# Start the Node.js app
+# Start backend
 CMD ["npm", "start"]

@@ -6,6 +6,7 @@ function PasteurizerControls({ simulationRunning, onStart, onStop, isLoading, co
       <h2>Simulation Controls</h2>
 
       <div className="controls-grid">
+
         <button
           className={`btn ${simulationRunning ? "btn-secondary" : "btn-primary"}`}
           onClick={onStart}
