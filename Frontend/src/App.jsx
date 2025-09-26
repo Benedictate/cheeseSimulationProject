@@ -1,18 +1,19 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import PasteurizerControls from "./components/PasteurizerControls"
-import ParameterSettings from "./components/ParameterSettings"
-import SimulationResults from "./components/SimulationResults"
-import "./App.css"
+import { useState, useEffect } from "react";
+import PasteurizerControls from "./components/PasteurizerControls";
+import ParameterSettings from "./components/ParameterSettings";
+import SimulationResults from "./components/SimulationResults";
+import "./App.css";
 
 function App() {
-  const [simulationRunning, setSimulationRunning] = useState(false)
-  const [simulationResults, setSimulationResults] = useState(null)
-  const [connectionStatus, setConnectionStatus] = useState("checking")
-  const [error, setError] = useState(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const backendUrl = process.env.REACT_APP_BACKEND_URL || "http://localhost:3001";
+  const [simulationRunning, setSimulationRunning] = useState(false);
+  const [simulationResults, setSimulationResults] = useState(null);
+  const [connectionStatus, setConnectionStatus] = useState("checking");
+  const [error, setError] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const backendUrl =
+    process.env.REACT_APP_BACKEND_URL || "http://localhost:3001";
 
   // Default pasteurizer parameters based on your Python file
   const [parameters, setParameters] = useState({
@@ -42,65 +43,65 @@ function App() {
     },
 
     timeScale: 0,
-  })
+  });
 
   // Check backend connection
   const checkConnection = async () => {
     try {
       const response = await fetch(`${backendUrl}/api/health`);
       if (response.ok) {
-        setConnectionStatus("connected")
-        setError(null)
+        setConnectionStatus("connected");
+        setError(null);
       } else {
-        setConnectionStatus("error")
+        setConnectionStatus("error");
       }
     } catch (err) {
-      setConnectionStatus("disconnected")
-      setError("Cannot connect to backend server")
+      setConnectionStatus("disconnected");
+      setError("Cannot connect to backend server");
     }
-  }
+  };
 
   // Poll simulation status
   const pollSimulationStatus = async () => {
-    if (!simulationRunning) return
+    if (!simulationRunning) return;
 
     try {
-      const response = await fetch(`${backendUrl}/api/simulation-status`)
+      const response = await fetch(`${backendUrl}/api/simulation-status`);
       if (response.ok) {
-        const data = await response.json()
-        setSimulationRunning(data.running)
-        setSimulationResults(data.results)
+        const data = await response.json();
+        setSimulationRunning(data.running);
+        setSimulationResults(data.results);
 
         if (data.results?.completed) {
-          setSimulationRunning(false)
+          setSimulationRunning(false);
         }
       }
     } catch (err) {
-      console.error("Error polling simulation status:", err)
+      console.error("Error polling simulation status:", err);
     }
-  }
+  };
 
   useEffect(() => {
-    checkConnection()
-    const connectionInterval = setInterval(checkConnection, 10000) // Check every 10 seconds
+    checkConnection();
+    const connectionInterval = setInterval(checkConnection, 10000); // Check every 10 seconds
 
-    return () => clearInterval(connectionInterval)
-  }, [])
+    return () => clearInterval(connectionInterval);
+  }, []);
 
   useEffect(() => {
-    let statusInterval
+    let statusInterval;
     if (simulationRunning) {
-      statusInterval = setInterval(pollSimulationStatus, 2000) // Poll every 2 seconds
+      statusInterval = setInterval(pollSimulationStatus, 2000); // Poll every 2 seconds
     }
 
     return () => {
-      if (statusInterval) clearInterval(statusInterval)
-    }
-  }, [simulationRunning])
+      if (statusInterval) clearInterval(statusInterval);
+    };
+  }, [simulationRunning]);
 
   const startSimulation = async () => {
-    setIsLoading(true)
-    setError(null)
+    setIsLoading(true);
+    setError(null);
 
     try {
       const response = await fetch(`${backendUrl}/api/start-simulation`, {
@@ -109,47 +110,47 @@ function App() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(parameters),
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (data.success) {
-        setSimulationRunning(true)
-        setSimulationResults(null)
+        setSimulationRunning(true);
+        setSimulationResults(null);
       } else {
-        setError(data.message)
+        setError(data.message);
       }
     } catch (err) {
-      setError(`Failed to start simulation: ${err.message}`)
+      setError(`Failed to start simulation: ${err.message}`);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const stopSimulation = async () => {
-    setIsLoading(true)
+    setIsLoading(true);
 
     try {
       const response = await fetch(`${backendUrl}/api/stop-simulation`, {
         method: "POST",
-      })
+      });
 
       if (response.ok) {
-        setSimulationRunning(false)
+        setSimulationRunning(false);
       }
     } catch (err) {
-      setError(`Failed to stop simulation: ${err.message}`)
+      setError(`Failed to stop simulation: ${err.message}`);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const handleParameterChange = (key, value) => {
     setParameters((prev) => ({
       ...prev,
       [key]: value,
-    }))
-  }
+    }));
+  };
 
   const handleAnomalyChange = (anomalyKey, field, value) => {
     setParameters((prev) => ({
@@ -161,8 +162,8 @@ function App() {
           [field]: value,
         },
       },
-    }))
-  }
+    }));
+  };
 
   return (
     <div className="app">
@@ -177,10 +178,10 @@ function App() {
               {connectionStatus === "connected"
                 ? "🟢 Backend Connected"
                 : connectionStatus === "disconnected"
-                  ? "🔴 Backend Disconnected"
-                  : connectionStatus === "error"
-                    ? "🟡 Backend Error"
-                    : "⏳ Checking..."}
+                ? "🔴 Backend Disconnected"
+                : connectionStatus === "error"
+                ? "🟡 Backend Error"
+                : "⏳ Checking..."}
             </span>
           </div>
         </div>
@@ -204,10 +205,13 @@ function App() {
           disabled={simulationRunning}
         />
 
-        <SimulationResults results={simulationResults} isRunning={simulationRunning} />
+        <SimulationResults
+          results={simulationResults}
+          isRunning={simulationRunning}
+        />
       </main>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

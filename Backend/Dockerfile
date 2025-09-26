@@ -17,7 +17,7 @@ RUN npm install
 COPY . .
 
 # Install Python dependencies
-RUN pip3 install simpy
+RUN pip3 install simpy pandas
 
 # Expose the backend port
 EXPOSE 3001

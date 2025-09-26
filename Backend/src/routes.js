@@ -7,7 +7,7 @@ const router = express.Router();
  */
 function runPythonSim(inputData) {
   return new Promise((resolve, reject) => {
-    const py = spawn("python3", ["../Main.py"]); // Adjust path if main.py is elsewhere
+    const py = spawn("python3", ["Main.py"]); // Adjust path if main.py is elsewhere
 
     let output = "";
     let errorOutput = "";
@@ -22,7 +22,9 @@ function runPythonSim(inputData) {
 
     py.on("close", (code) => {
       if (code !== 0) {
-        reject(new Error(`Python process exited with code ${code}: ${errorOutput}`));
+        reject(
+          new Error(`Python process exited with code ${code}: ${errorOutput}`)
+        );
       } else {
         resolve(output.trim());
       }
@@ -37,7 +39,10 @@ function runPythonSim(inputData) {
 // Route 0: Health check route
 router.get("/health", (req, res) => {
   res.removeHeader("ETag"); // make sure no ETag is set
-  res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.set(
+    "Cache-Control",
+    "no-store, no-cache, must-revalidate, proxy-revalidate"
+  );
   res.set("Pragma", "no-cache");
   res.set("Expires", "0");
 
@@ -67,7 +72,7 @@ router.post("/quick", express.text(), async (req, res) => {
 /**
  * Route 2: full machine settings JSON
  */
-router.post("/settings", async (req, res) => {
+router.post("/start-simulation", async (req, res) => {
   try {
     const settings = req.body;
 
