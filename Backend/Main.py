@@ -1,7 +1,7 @@
 import simpy
 import json
 import os
-from machines import *
+from Machines import *
 from helpers import *
 import sys
 
