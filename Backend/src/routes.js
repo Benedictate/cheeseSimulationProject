@@ -72,18 +72,53 @@ router.post("/quick", express.text(), async (req, res) => {
 /**
  * Route 2: full machine settings JSON
  */
-router.post("/start-simulation", async (req, res) => {
+router.post("/start-simulation", (req, res) => {
   try {
-    const settings = req.body;
-
-    if (!settings || typeof settings !== "object") {
-      return res.status(400).json({ error: "Invalid settings object" });
+    if (currentProcess) {
+      return res.status(400).json({ error: "Simulation already running" });
     }
 
-    const result = await runPythonSim(settings);
-    res.json({ success: true, result });
+    const settings = req.body;
+    currentProcess = spawn("python3", ["Main.py"]);
+
+    // pass JSON into stdin
+    currentProcess.stdin.write(JSON.stringify(settings));
+    currentProcess.stdin.end();
+
+    // handle logs
+    currentProcess.stdout.on("data", (data) => {
+      console.log("Python:", data.toString());
+    });
+
+    currentProcess.stderr.on("data", (data) => {
+      console.error("Python error:", data.toString());
+    });
+
+    currentProcess.on("close", (code) => {
+      console.log("Simulation ended with code", code);
+      currentProcess = null;
+    });
+
+    res.json({ success: true, message: "Simulation started" });
   } catch (err) {
-    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Route 3: End Python process
+ */
+router.post("/stop-simulation", (req, res) => {
+  try {
+    if (!currentProcess) {
+      return res.status(400).json({ error: "No simulation is running" });
+    }
+
+    currentProcess.kill("SIGINT"); // or "SIGTERM" depending on Python cleanup
+    currentProcess = null;
+
+    res.json({ success: true, message: "Simulation stopped" });
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });

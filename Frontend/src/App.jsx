@@ -112,14 +112,49 @@ function App() {
         body: JSON.stringify(parameters),
       });
 
-      const data = await response.json();
+      if (!response.body) throw new Error("ReadableStream not supported");
 
-      if (data.success) {
-        setSimulationRunning(true);
-        setSimulationResults(null);
-      } else {
-        setError(data.message);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // assume Python prints one JSON per line
+        let lines = buffer.split("\n");
+        buffer = lines.pop(); // keep last partial line
+
+        for (const line of lines) {
+          try {
+            const parsed = JSON.parse(line);
+            // update your state incrementally
+            setSimulationResults((prev) =>
+              prev ? [...prev, parsed] : [parsed]
+            );
+          } catch (e) {
+            console.warn("Skipping non-JSON line:", line);
+          }
+        }
       }
+
+      // flush last buffered line if it's valid JSON
+      if (buffer.trim()) {
+        try {
+          const parsed = JSON.parse(buffer.trim());
+          setSimulationResults((prev) =>
+            prev ? [...prev, parsed] : [parsed]
+          );
+        } catch (e) {
+          console.warn("Skipping final non-JSON:", buffer);
+        }
+      }
+
+      setSimulationRunning(true);
     } catch (err) {
       setError(`Failed to start simulation: ${err.message}`);
     } finally {
