@@ -99,9 +99,12 @@ function App() {
     };
   }, [simulationRunning]);
 
+
   const startSimulation = async () => {
     setIsLoading(true);
     setError(null);
+    setSimulationResults(null); // clear previous results
+    setSimulationRunning(true); // mark running immediately
 
     try {
       const response = await fetch(`${backendUrl}/api/start-simulation`, {
@@ -132,11 +135,10 @@ function App() {
         for (const line of lines) {
           try {
             const parsed = JSON.parse(line);
-            // update your state incrementally
             setSimulationResults((prev) =>
               prev ? [...prev, parsed] : [parsed]
             );
-          } catch (e) {
+          } catch {
             console.warn("Skipping non-JSON line:", line);
           }
         }
@@ -149,14 +151,13 @@ function App() {
           setSimulationResults((prev) =>
             prev ? [...prev, parsed] : [parsed]
           );
-        } catch (e) {
+        } catch {
           console.warn("Skipping final non-JSON:", buffer);
         }
       }
-
-      setSimulationRunning(true);
     } catch (err) {
       setError(`Failed to start simulation: ${err.message}`);
+      setSimulationRunning(false); // ensure stopped if failed
     } finally {
       setIsLoading(false);
     }
@@ -179,6 +180,8 @@ function App() {
       setIsLoading(false);
     }
   };
+
+
 
   const handleParameterChange = (key, value) => {
     setParameters((prev) => ({

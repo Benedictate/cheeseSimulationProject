@@ -72,32 +72,43 @@ router.post("/quick", express.text(), async (req, res) => {
 /**
  * Route 2: full machine settings JSON
  */
-router.post("/start-simulation", (req, res) => {
+router.post("/start-simulation", async (req, res) => {
+  if (running) {
+    return res.status(400).json({ success: false, message: "Simulation already running" });
+  }
+
+  const settings = req.body;
+
   try {
-    if (currentProcess) {
-      return res.status(400).json({ error: "Simulation already running" });
-    }
+    simProcess = spawn("python3", ["Main.py"]);
 
-    const settings = req.body;
-    currentProcess = spawn("python3", ["Main.py"]);
+    running = true;
+    latestResults = { running: true, progress: [] };
 
-    // pass JSON into stdin
-    currentProcess.stdin.write(JSON.stringify(settings));
-    currentProcess.stdin.end();
-
-    // handle logs
-    currentProcess.stdout.on("data", (data) => {
-      console.log("Python:", data.toString());
+    simProcess.stdout.on("data", (data) => {
+      try {
+        // Assume Python prints JSON per line
+        const parsed = JSON.parse(data.toString().trim());
+        latestResults.progress.push(parsed);
+      } catch (err) {
+        console.error("Failed to parse Python output:", data.toString());
+      }
     });
 
-    currentProcess.stderr.on("data", (data) => {
+    simProcess.stderr.on("data", (data) => {
       console.error("Python error:", data.toString());
     });
 
-    currentProcess.on("close", (code) => {
-      console.log("Simulation ended with code", code);
-      currentProcess = null;
+    simProcess.on("close", (code) => {
+      running = false;
+      if (!latestResults) latestResults = {};
+      latestResults.completed = true;
+      latestResults.exitCode = code;
     });
+
+    // Send settings to Python stdin
+    simProcess.stdin.write(JSON.stringify(settings));
+    simProcess.stdin.end();
 
     res.json({ success: true, message: "Simulation started" });
   } catch (err) {
@@ -109,18 +120,24 @@ router.post("/start-simulation", (req, res) => {
  * Route 3: End Python process
  */
 router.post("/stop-simulation", (req, res) => {
-  try {
-    if (!currentProcess) {
-      return res.status(400).json({ error: "No simulation is running" });
-    }
-
-    currentProcess.kill("SIGINT"); // or "SIGTERM" depending on Python cleanup
-    currentProcess = null;
-
-    res.json({ success: true, message: "Simulation stopped" });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+  if (simProcess) {
+    simProcess.kill("SIGINT");
+    running = false;
+    latestResults = { stopped: true };
+    simProcess = null;
+    return res.json({ success: true, message: "Simulation stopped" });
   }
+  res.status(400).json({ success: false, message: "No simulation running" });
+});
+
+/**
+ * Route 4: Poll simulation status
+ */
+router.get("/simulation-status", (req, res) => {
+  res.json({
+    running,
+    results: latestResults,
+  });
 });
 
 module.exports = router;
