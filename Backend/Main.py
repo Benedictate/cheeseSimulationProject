@@ -1,7 +1,7 @@
 import simpy
 import json
 import os
-from Machines import *
+from machines import *
 from helpers import *
 import sys
 
@@ -102,12 +102,42 @@ def main(args=None):
     # Run ripener
     ripener = Ripener.run(env, ripener_input)
 
+
+    # Simple json data test
+    def write_test_json(env):
+        count = 1
+        filename = "Backend/data/test.ndjson"
+
+        # Ensure the folder exists
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+
+        while True:
+            # Append a new JSON object as a line
+            with open(filename, "a") as f:
+                json.dump({"count": count}, f)
+                f.write("\n")
+                f.flush()                  # flush OS buffer
+                os.fsync(f.fileno())       # ensure it's immediately visible
+
+            count += 1
+            yield env.timeout(1)           # 1 simulated minute
+
+    # Start the writer process
+    env.process(write_test_json(env))
+
     # Run sim
     env.run(until=args["global"]["simulation_time"])
 
     # Save logs
     salting_machine.save_observations_to_json()
     curd_cutter.save_logs("data")
+
+  # Convert NDJSON to proper JSON array at the end
+    with open("Backend/data/test.ndjson") as f:
+        array = [json.loads(line) for line in f if line.strip()]
+
+    with open("Backend/data/test_final.json", "w") as f:
+        json.dump(array, f, indent=4)
 
 if __name__ == "__main__":
     args = load_defaults("args.json")

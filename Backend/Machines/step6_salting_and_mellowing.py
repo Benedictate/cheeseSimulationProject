@@ -47,7 +47,7 @@ class SaltingMachine:
             'machine': machine_stage
         })
 
-    def save_observations_to_json(self, filename='data/salting & mellowing data.json'):
+    def save_observations_to_json(self, filename='Backend/data/salting & mellowing data.json'):
         folder = os.path.dirname(filename)
         if folder:
             os.makedirs(folder, exist_ok=True)
