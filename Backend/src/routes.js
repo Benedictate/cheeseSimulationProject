@@ -1,5 +1,6 @@
 const express = require("express");
 const { spawn } = require("child_process");
+const { startSim, stopSim } = require("../pythonHandler");
 const router = express.Router();
 
 /**
@@ -73,61 +74,24 @@ router.post("/quick", express.text(), async (req, res) => {
  * Route 2: full machine settings JSON
  */
 router.post("/start-simulation", async (req, res) => {
-  if (running) {
-    return res.status(400).json({ success: false, message: "Simulation already running" });
-  }
-
-  const settings = req.body;
-
   try {
-    simProcess = spawn("python3", ["Main.py"]);
-
-    running = true;
-    latestResults = { running: true, progress: [] };
-
-    simProcess.stdout.on("data", (data) => {
-      try {
-        // Assume Python prints JSON per line
-        const parsed = JSON.parse(data.toString().trim());
-        latestResults.progress.push(parsed);
-      } catch (err) {
-        console.error("Failed to parse Python output:", data.toString());
-      }
-    });
-
-    simProcess.stderr.on("data", (data) => {
-      console.error("Python error:", data.toString());
-    });
-
-    simProcess.on("close", (code) => {
-      running = false;
-      if (!latestResults) latestResults = {};
-      latestResults.completed = true;
-      latestResults.exitCode = code;
-    });
-
-    // Send settings to Python stdin
-    simProcess.stdin.write(JSON.stringify(settings));
-    simProcess.stdin.end();
-
-    res.json({ success: true, message: "Simulation started" });
+    const result = await startSim(req.body);
+    res.json({ success: true, ...result });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(400).json({ success: false, error: err.message });
   }
 });
 
 /**
  * Route 3: End Python process
  */
-router.post("/stop-simulation", (req, res) => {
-  if (simProcess) {
-    simProcess.kill("SIGINT");
-    running = false;
-    latestResults = { stopped: true };
-    simProcess = null;
-    return res.json({ success: true, message: "Simulation stopped" });
+router.post("/stop-simulation", async (req, res) => {
+  try {
+    const result = await stopSim();
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
   }
-  res.status(400).json({ success: false, message: "No simulation running" });
 });
 
 /**
