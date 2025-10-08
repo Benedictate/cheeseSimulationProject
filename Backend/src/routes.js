@@ -50,7 +50,7 @@ router.get("/health", (req, res) => {
 });
 
 /**
- * Route 1: Single binary value
+ * Route 1: Single binary value  ---BROKEN---
  * Example: POST body = "1"
  */
 router.post("/quick", express.text(), async (req, res) => {
