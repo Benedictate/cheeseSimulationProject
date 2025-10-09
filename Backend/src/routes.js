@@ -1,6 +1,6 @@
 const express = require("express");
 const { spawn } = require("child_process");
-const { startSim, stopSim } = require("../pythonHandler");
+const { startSim, stopSim , getSimState} = require("../pythonHandler");
 const router = express.Router();
 
 /**
@@ -99,8 +99,7 @@ router.post("/stop-simulation", async (req, res) => {
  */
 router.get("/simulation-status", (req, res) => {
   res.json({
-    running,
-    results: latestResults,
+     running: getSimState().isRunning 
   });
 });
 

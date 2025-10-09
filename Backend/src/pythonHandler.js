@@ -63,4 +63,8 @@ function stopSim() {
   });
 }
 
-module.exports = { startSim, stopSim };
+function getSimState() {
+  return { isRunning };
+}
+
+module.exports = { startSim, stopSim, getSimState };
