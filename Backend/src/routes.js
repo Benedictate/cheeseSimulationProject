@@ -1,6 +1,6 @@
 const express = require("express");
 const { spawn } = require("child_process");
-const { startSim, stopSim , getSimState} = require("../pythonHandler");
+const { startSim, stopSim , getSimState} = require("pythonHandler");
 const router = express.Router();
 
 /**
