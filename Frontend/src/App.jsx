@@ -25,6 +25,8 @@ function App() {
     global: {
       time_mode: 0,
       simulation_time: 6000,
+      milk_to_process: 60000,
+
     },
     machines: {
       pasteuriser: {

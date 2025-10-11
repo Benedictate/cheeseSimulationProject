@@ -33,6 +33,16 @@ function ParameterSettings({ parameters, onParameterChange, disabled }) {
               disabled={disabled}
             />
           </div>
+
+          <div className="parameter-item">
+            <label>Milk to Process</label>
+            <input
+              type="number"
+              value={parameters.global.milk_to_process}
+              onChange={(e) => handleChange("global", "milk_to_process", e.target.value)}
+              disabled={disabled}
+            />
+          </div>
         </div>
       </div>
 
