@@ -1,5 +1,5 @@
   "use client"
-  import mqtt from "mqtt";
+  import mqtt from "mqtt/dist/mqtt";
 
   // --- MQTT for real-time results ---
   function useMqttResults(setSimulationResults) {
