@@ -1,5 +1,6 @@
   "use client"
-  import mqtt from "mqtt/dist/mqtt";
+  import { useEffect } from "react";
+  import mqtt from "mqtt";
 
   // --- MQTT for real-time results ---
   function useMqttResults(setSimulationResults) {
