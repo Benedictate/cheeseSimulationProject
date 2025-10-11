@@ -4,8 +4,9 @@ import json
 import os
 
 class SaltingMachine:
-    def __init__(self, env, input_conveyor, mellowing_conveyor, mellowing_output_conveyor, mellowing_time=10, salt_recipe=0.033):
+    def __init__(self, env, input_conveyor, clock, mellowing_conveyor, mellowing_output_conveyor, mellowing_time=None, salt_recipe=None):
         self.env = env
+        self.clock = clock()
         self.input_conveyor = input_conveyor
         self.mellowing_conveyor = mellowing_conveyor
         self.mellowing_output_conveyor = mellowing_output_conveyor
@@ -40,7 +41,7 @@ class SaltingMachine:
     def log(self, curd_slice, machine_stage):
         self.observer.append({
             'sim_time_min': self.env.now,
-            'utc_time': datetime.now(timezone.utc).isoformat(),
+            'utc_time': self.clock.now(),
             'curd_id': curd_slice['id'],
             'mass': curd_slice['mass'],
             'salt': curd_slice['salt'],
@@ -58,10 +59,10 @@ class SaltingMachine:
         print(f"Observations saved to {filename}")
 
     @staticmethod
-    def run(env, input_conveyor, salting_output, mellowing_time=10, salt_recipe=0.033):
+    def run(env, input_conveyor, salting_output, clock, mellowing_time=10, salt_recipe=0.033):
         mellowing_conveyor = simpy.Store(env)
 
-        machine = SaltingMachine(env, input_conveyor, mellowing_conveyor, salting_output,
+        machine = SaltingMachine(env, input_conveyor, clock, mellowing_conveyor, salting_output,
                                  mellowing_time=mellowing_time, salt_recipe=salt_recipe)
 
         env.process(machine.salt_dispenser())

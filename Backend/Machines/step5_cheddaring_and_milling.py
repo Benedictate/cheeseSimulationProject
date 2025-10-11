@@ -4,10 +4,11 @@ import math  # Import math for exponential and sigmoid functions
 
 
 class Cheddaring:
-    def __init__(self, env, input, output_store, total_time=180, step=15):
+    def __init__(self, env, input, output_store, clock, total_time=180, step=15):
         self.env = env
         self.initial_curd = input
         self.output_store = output_store
+        self.clock = clock
         self.moisture_diff = 30
         self.moisture_final = 45
         self.decay_pre = -0.02
@@ -63,7 +64,7 @@ class Cheddaring:
                 yield self.output_store.put(batch)
 
     @staticmethod
-    def run(env, input, output_store,  total_time=180, step=15):
-        machine = Cheddaring(env, input, output_store, total_time, step)
+    def run(env, input, output_store, clock,  total_time=180, step=15):
+        machine = Cheddaring(env, input, output_store, clock, total_time, step)
         env.process(machine.process())
         return machine

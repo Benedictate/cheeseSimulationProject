@@ -6,10 +6,10 @@ from helpers import *
 import sys
 
 # Open a file for writing
-# log_file = open("cheese_sim_log.txt", "w")
+log_file = open("cheese_sim_log.txt", "w")
 
 # Redirect stdout to the file
-# sys.stdout = log_file
+sys.stdout = log_file
 
 def load_defaults(filename="args.json"):
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -53,55 +53,54 @@ def main(args=None):
     presser_output = simpy.Store(env)
     ripener_input = simpy.Store(env)
 
-    pasteuriser_input.items = [50000]
+    pasteuriser_input.items = [args["global"]["milk_to_process"]]
     '''
     machines running in sequence with their respective helper functions
     '''
     # Run pasteuriser
-    pasteuriser = Pasteuriser.run(env, pasteuriser_input, pasteuriser_output, waste_store)
+    pasteuriser = Pasteuriser.run(env, pasteuriser_input, pasteuriser_output, args["machines"]["pasteuriser"]["temp_optimal"], waste_store, args["machines"]["pasteuriser"]["flow_rate"])
     
     # Convert pasteuriser output to cheesevat input
     env.process(pasteuriser_to_vat(env, pasteuriser_output, vat_input, args["machines"]["cheese_vat"]["vat_batch_size"]))
 
     # Run cheese vat
-    cheese_vat = CheeseVat.run(env, vat_input, vat_output, args["machines"]["cheese_vat"]["anomaly_probability"])
+    cheese_vat = CheeseVat.run(env, vat_input, vat_output, args["machines"]["cheese_vat"]["optimal_ph"], args["machines"]["cheese_vat"]["milk_flow_rate"], args["machines"]["cheese_vat"]["anomaly_probability"])
 
     # Convert vat output to cutter input
     env.process(vat_to_cutter(env, vat_output, cutter_input))
 
     # Run curd cutter
-    curd_cutter = CurdCutter.run(env, cutter_input, cutter_output, args["machines"]["curd_cutter"]["blade_wear_rate"], args["machines"]["curd_cutter"]["auger_speed"])
+    curd_cutter = CurdCutter.run(env, cutter_input, cutter_output, Clock, args["machines"]["curd_cutter"]["blade_wear_rate"], args["machines"]["curd_cutter"]["auger_speed"])
 
     # Convert cutter output to whey input
     env.process(cutter_to_whey(env, cutter_output, whey_input, args["machines"]["whey_drainer"]["target_mass"]))
 
     # Run whey drainer
-    whey_drainer = WheyDrainer.run(env, whey_input, whey_output)
+    whey_drainer = WheyDrainer.run(env, whey_input, whey_output, Clock, args["machines"]["whey_drainer"]["target_moisture"] )
 
     # Convert whe output to cheddaring input
     env.process(whey_to_cheddaring(env, whey_output, cheddaring_input))
 
     # Run cheddaring machine
-    cheddaring_machine = Cheddaring.run(env, cheddaring_input, cheddaring_output)
+    cheddaring_machine = Cheddaring.run(env, cheddaring_input, cheddaring_output, Clock)
     
     # Convert cheddaring output to salting input
     env.process(cheddaring_to_salting(env, cheddaring_output, salting_input, SLICE_MASS, GENERATION_INTERVAL))
 
     # Run the salting machine
-    salting_machine = SaltingMachine.run(env, salting_input, salting_output, mellowing_time=args["machines"]["salting_machine"]["mellowing_time"], salt_recipe=args["machines"]["salting_machine"]["salt_recipe"])
+    salting_machine = SaltingMachine.run(env, salting_input, salting_output, Clock, mellowing_time=args["machines"]["salting_machine"]["mellowing_time"], salt_recipe=args["machines"]["salting_machine"]["salt_recipe"])
 
     # Convert salting output to presser input
     env.process(salting_to_presser(env, salting_output, presser_input, args["machines"]["cheese_presser"]["block_weight"]))
 
     # Run Presser
-    cheese_presser = CheesePresser.run(env, presser_input, presser_output)
+    cheese_presser = CheesePresser.run(env, presser_input, presser_output, Clock, args["machines"]["cheese_presser"]["anomaly_chance"], args["machines"]["cheese_presser"]["mold_count"])
 
     # Convert presser output to ripener input
     env.process(presser_to_ripener(env, presser_output, ripener_input))
 
     # Run ripener
-    ripener = Ripener.run(env, ripener_input)
-
+    ripener = Ripener.run(env, ripener_input, Clock, args["machines"]["ripener"]["initial_temp"])
 
     # Simple json data test
     def write_test_json(env):
