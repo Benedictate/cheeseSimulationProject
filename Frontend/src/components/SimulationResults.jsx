@@ -5,7 +5,8 @@ import { useState } from "react"
 function SimulationResults({ results, isRunning }) {
   const [logExpanded, setLogExpanded] = useState(false)
 
-  if (!results) {
+  // 🩵 Early fallback if no data
+  if (!results || Object.keys(results).length === 0) {
     return (
       <div className="card">
         <h2>📊 Simulation Results</h2>
@@ -16,8 +17,12 @@ function SimulationResults({ results, isRunning }) {
     )
   }
 
-  const progress = results.progress || 0
-  const finalResults = results.final_results
+  // 🧩 Normalize structure (handles both live + final payloads)
+  const progress = results.progress ?? results.current_progress ?? 0
+  const finalResults = results.final_results || results
+
+  // 🩵 Helpful debug output in console
+  console.log("🔍 Rendering SimulationResults:", results)
 
   return (
     <div className="card">
@@ -30,27 +35,27 @@ function SimulationResults({ results, isRunning }) {
           <div className="status-grid">
             <div className="status-item">
               <label>Current Step</label>
-              <span>{results.current_step || 0}</span>
+              <span>{results.current_step ?? 0}</span>
             </div>
             <div className="status-item">
               <label>Temperature</label>
-              <span>{results.temperature?.toFixed(1) || 0}°C</span>
+              <span>{Number(results.temperature)?.toFixed(1) ?? 0}°C</span>
             </div>
             <div className="status-item">
               <label>Start Tank</label>
-              <span>{results.start_tank?.toFixed(1) || 0}L</span>
+              <span>{Number(results.start_tank)?.toFixed(1) ?? 0}L</span>
             </div>
             <div className="status-item">
               <label>Balance Tank</label>
-              <span>{results.balance_tank?.toFixed(1) || 0}L</span>
+              <span>{Number(results.balance_tank)?.toFixed(1) ?? 0}L</span>
             </div>
             <div className="status-item">
               <label>Pasteurized</label>
-              <span>{results.pasteurized_total?.toFixed(1) || 0}L</span>
+              <span>{Number(results.pasteurized_total)?.toFixed(1) ?? 0}L</span>
             </div>
             <div className="status-item">
               <label>Burnt</label>
-              <span>{results.burnt_total?.toFixed(1) || 0}L</span>
+              <span>{Number(results.burnt_total)?.toFixed(1) ?? 0}L</span>
             </div>
           </div>
 
@@ -72,26 +77,36 @@ function SimulationResults({ results, isRunning }) {
           <h3>✅ Final Results</h3>
           <div className="results-grid">
             <div className="result-card success">
-              <div className="result-value">{finalResults.pasteurized_total?.toFixed(1) || 0}L</div>
+              <div className="result-value">
+                {Number(finalResults.pasteurized_total)?.toFixed(1) ?? 0}L
+              </div>
               <div className="result-label">Pasteurized</div>
-              <div className="result-percentage">{finalResults.efficiency?.toFixed(1) || 0}%</div>
+              <div className="result-percentage">
+                {Number(finalResults.efficiency)?.toFixed(1) ?? 0}%
+              </div>
             </div>
 
             <div className="result-card error">
-              <div className="result-value">{finalResults.burnt_total?.toFixed(1) || 0}L</div>
+              <div className="result-value">
+                {Number(finalResults.burnt_total)?.toFixed(1) ?? 0}L
+              </div>
               <div className="result-label">Burnt/Waste</div>
-              <div className="result-percentage">{finalResults.waste_percentage?.toFixed(1) || 0}%</div>
+              <div className="result-percentage">
+                {Number(finalResults.waste_percentage)?.toFixed(1) ?? 0}%
+              </div>
             </div>
 
             <div className="result-card info">
-              <div className="result-value">{finalResults.total_milk?.toFixed(1) || 0}L</div>
+              <div className="result-value">
+                {Number(finalResults.total_milk)?.toFixed(1) ?? 0}L
+              </div>
               <div className="result-label">Total Processed</div>
               <div className="result-percentage">100%</div>
             </div>
           </div>
 
           {/* Process Log */}
-          {finalResults.log_data && (
+          {finalResults.log_data && Array.isArray(finalResults.log_data) && (
             <div className="process-log">
               <div className="log-header">
                 <h4>📋 Process Log</h4>
@@ -128,6 +143,12 @@ function SimulationResults({ results, isRunning }) {
           )}
         </div>
       )}
+
+      {/* 🩵 Debug fallback - remove later */}
+      <details style={{ marginTop: "1rem", fontSize: "0.85rem", opacity: 0.8 }}>
+        <summary>Raw data (debug)</summary>
+        <pre>{JSON.stringify(results, null, 2)}</pre>
+      </details>
     </div>
   )
 }

@@ -15,6 +15,7 @@
     });
 
     client.on("message", (topic, message) => {
+      console.log("📥 MQTT message received:", topic, message.toString());
       if (topic === "simulation/results") {
         try {
           const parsed = JSON.parse(message.toString());
