@@ -1,15 +1,25 @@
 import simpy
 import json
 import os
-from machines import *
+from Machines import *
 from helpers import *
 import sys
+import logging
 
-# Open a file for writing
-log_file = open("cheese_sim_log.txt", "w")
 
-# Redirect stdout to the file
-sys.stdout = log_file
+log_file_path = "cheese_sim_log.txt"
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s",
+    handlers=[
+        logging.StreamHandler(sys.stdout),             # Console output
+        logging.FileHandler(log_file_path, mode="w")  # File output
+    ]
+)
+
+logging.info("This will print to console and also be saved in cheese_sim_log.txt")
+
 
 def load_defaults(filename="args.json"):
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -21,11 +31,14 @@ def load_defaults(filename="args.json"):
 MAX_FLOW_RATE = 181.5
 
 def main(args=None):
-    
     if args is None:
         args = load_defaults()
+        print("Using default args.json")
+    else:
+        print("Using config from frontend")
+        print(json.dumps(args, indent=2))
 
-    env = create_env(args["global"]["time_mode"], 60, True)
+    env = create_env(args["global"]["time_mode"], 1, True)
 
     # Derived values
     MAX_SLICES = int((MAX_FLOW_RATE * args["machines"]["salting_machine"]["mellowing_time"]) / (args["machines"]["salting_machine"]["flow_rate"] * (args["machines"]["salting_machine"]["mellowing_time"] / int((MAX_FLOW_RATE * args["machines"]["salting_machine"]["mellowing_time"]) / args["machines"]["salting_machine"]["flow_rate"]))))
@@ -136,5 +149,17 @@ def main(args=None):
         json.dump(array, f, indent=4)
 
 if __name__ == "__main__":
-    main()
-    
+    import sys, json
+
+    args = None
+    try:
+        # Read one line from stdin
+        stdin_data = sys.stdin.readline()
+        if stdin_data.strip():
+            args = json.loads(stdin_data)
+            print("✅ Using config from frontend")
+            print(json.dumps(args, indent=2))
+    except json.JSONDecodeError:
+        print("⚠️ Failed to parse stdin JSON, falling back to defaults")
+
+    main(args)
