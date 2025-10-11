@@ -1,12 +1,10 @@
 import simpy
-from datetime import datetime as dt
 
 class Ripener:
 
     # --- Temperature Thresholds (°C) ---
     TEMP_MIN_OPERATING = 3     # Lowest temp for intake
     TEMP_OPTIMAL_MIN = 7       # Minimum temp to ripen
-    TEMP_OPTIMAL = 10          # Optimal temp to ripen
     TEMP_OPTIMAL_MAX = 13      # Maximum temp to ripen
     TEMP_RUINED_THRESHOLD = 17 # Temp at which cheese is ruined
 
@@ -18,9 +16,10 @@ class Ripener:
     TEMP_DROP_PER_STEP = 1     # Cooling rate per step
     TEMP_RISE_WHEN_COLD = 1.5  # Reheating rate per step
 
-    def __init__(self, env, input_blocks, initial_temp=None):
+    def __init__(self, env, input_blocks, clock, initial_temp=None):
         self.incoming_blocks = input_blocks
-        self.initial_temp = initial_temp or self.TEMP_OPTIMAL
+        self.clock = clock()
+        self.initial_temp = initial_temp
         self.env = env
 
     @staticmethod
@@ -50,7 +49,7 @@ class Ripener:
 
             ripening += step_weight
 
-            print(f"{dt.now()} {intake:<14.2f} {ripening:<14.2f} {temperature:<10.2f} {status}")
+            print(f"{self.clock.now()} {intake:<14.2f} {ripening:<14.2f} {temperature:<10.2f} {status}")
 
             # Final report
             stored_blocks = ripening
@@ -66,8 +65,8 @@ class Ripener:
                 print("The Cheese took too long to ripen.")
 
     @staticmethod
-    def run(env, input_blocks, initial_temp=None):
+    def run(env, input_blocks, clock, initial_temp=None):
        
-        machine = Ripener(env, input_blocks, initial_temp)
+        machine = Ripener(env, input_blocks, clock, initial_temp)
         env.process(machine.ripening_process())
         return machine

@@ -4,7 +4,7 @@ import random
 # --- Temperature thresholds (°C) ---
 TEMP_MIN_OPERATING = 68
 TEMP_OPTIMAL_MIN = 70
-TEMP_OPTIMAL = 72
+
 TEMP_OPTIMAL_MAX = 74
 TEMP_BURN_THRESHOLD = 77
 
@@ -21,15 +21,16 @@ TEMP_RANGE_VARIATION = (-2, 2)
 FLOW_RATE = 41.7  # L per step
 
 class Pasteuriser:
-    def __init__(self, env, input_store, output_store, waste_store, flow_rate=FLOW_RATE):
+    def __init__(self, env, input_store, output_store, temp_optimal, waste_store, flow_rate=None):
         self.env = env
         self.input_store = input_store
         self.output_store = output_store
+        self.temp_optimal = temp_optimal
         self.waste_store = waste_store
         self.flow_rate = flow_rate
 
         # Internal state
-        self.temperature = TEMP_OPTIMAL
+        self.temperature = self.temp_optimal
         self.cooling_overheat = False
         self.start_tank = sum(input_store.items)
         self.balance_tank = 0.0
@@ -77,7 +78,7 @@ class Pasteuriser:
             if self.cooling_overheat:
                 self.temperature -= TEMP_DROP_PER_STEP
                 status = "Cooling after Overheat"
-                if self.temperature <= TEMP_OPTIMAL:
+                if self.temperature <= self.temp_optimal:
                     self.cooling_overheat = False
                     status = "Cooled - Resuming"
                 yield self.env.timeout(1)
@@ -127,7 +128,7 @@ class Pasteuriser:
             yield self.env.timeout(1)
 
     @staticmethod
-    def run(env, input_store, output_store, waste_store, flow_rate=FLOW_RATE):
-        machine = Pasteuriser(env, input_store, output_store, waste_store, flow_rate)
+    def run(env, input_store, output_store, temp_optimal, waste_store, flow_rate=None):
+        machine = Pasteuriser(env, input_store, output_store, temp_optimal, waste_store, flow_rate)
         env.process(machine.process())
         return machine

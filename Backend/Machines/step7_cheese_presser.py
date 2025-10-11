@@ -11,14 +11,16 @@ BASE_MOISTURE_REDUCTION_RATE = 0.05  # how much moisture is reduced by default
 MOISTURE_MIN_THRESHOLD = 32.0        # lowest moisture content allowed in the cheese
 MAINTENANCE_THRESHOLD = 85           # if machine health drops below this, maintenance is triggered
 MAINTENANCE_DURATION = 10            # time (in minutes) needed to perform maintenance
-ANOMALY_CHANCE = 0.1                 # 10% chance something goes wrong with a batch
+
 
 # machine logic
 class CheesePresser:
-    def __init__(self, env, input_conveyor, output_conveyor, mold_count=5):
+    def __init__(self, env, input_conveyor, output_conveyor, clock, anomaly_chance, mold_count=None):
         self.env = env
         self.input_conveyor = input_conveyor
         self.output_conveyor = output_conveyor
+        self.anomaly_chance = anomaly_chance
+        self.clock = clock()
         self.mold_count = mold_count
         self.health = 100.0
         self.is_under_maintenance = False
@@ -43,7 +45,7 @@ class CheesePresser:
         weight_loss = batch['input_weight_kg'] * (reduction * 0.9)
         output_weight = batch['input_weight_kg'] - weight_loss
 
-        if random.random() < ANOMALY_CHANCE:
+        if random.random() < self.anomaly_chance:
             anomaly_occurred = True
             final_moisture += 2
             output_weight -= 0.1
@@ -63,7 +65,8 @@ class CheesePresser:
             "press_pressure_psi": round(batch['press_pressure_psi'], 2),
             "press_duration_min": batch['press_duration_min'],
             "anomaly": anomaly_occurred,
-            "maintenance_flag": maintenance_flag
+            "maintenance_flag": maintenance_flag,
+            "time": self.clock.now()
         })
 
         # Forward batch to output conveyor
@@ -82,8 +85,8 @@ class CheesePresser:
     # df.to_json("cheese_press_output.json", orient="records", indent=2) 
     
     @staticmethod
-    def run(env, input_conveyor, output_conveyor, mold_count=5):
-        machine = CheesePresser(env, input_conveyor, output_conveyor, mold_count)
+    def run(env, input_conveyor, output_conveyor, clock, anomaly_chance, mold_count=None):
+        machine = CheesePresser(env, input_conveyor, output_conveyor, clock, anomaly_chance, mold_count)
 
         def consumer(env, input_conveyor, machine):
             while True:

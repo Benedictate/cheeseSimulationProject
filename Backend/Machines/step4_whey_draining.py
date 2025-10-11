@@ -3,10 +3,12 @@ from datetime import datetime, timedelta, timezone
 import simpy
 
 class WheyDrainer:
-    def __init__(self, env, input_store, output_store):
+    def __init__(self, env, input_store, output_store, clock, target_moisture=None):
         self.env = env
         self.input_store = input_store
         self.output_store = output_store
+        self.clock = clock()
+        self.target_moisture = target_moisture
         self.per_batch_logs = []
 
     def process(self):
@@ -18,7 +20,6 @@ class WheyDrainer:
             INITIAL_WHEY = total_volume * 0.65
             INITIAL_CURD = total_volume - INITIAL_WHEY
             INITIAL_MOISTURE = 80.0
-            TARGET_MOISTURE = 58.0
             DRAIN_TIME = 60
             TEMP_START = 38.0
             TEMP_END = 32.0
@@ -27,10 +28,10 @@ class WheyDrainer:
             whey_remaining = INITIAL_WHEY
             moisture = INITIAL_MOISTURE
             time_elapsed = 0
-            start_time = datetime.now(timezone.utc)
+            current_time = self.clock.now(as_string=False)
 
             intervals = DRAIN_TIME // 5
-            moisture_drop_per_interval = (INITIAL_MOISTURE - TARGET_MOISTURE) / intervals
+            moisture_drop_per_interval = (INITIAL_MOISTURE - self.target_moisture) / intervals
             whey_drained_per_interval = INITIAL_WHEY / intervals
 
             # Print header
@@ -39,8 +40,7 @@ class WheyDrainer:
             print("Time (UTC)          | Time(min) | Temp(C) | Whey Remaining(L) | Curd(L) | Moisture(%)")
             print("----------------------------------------------------------------------------------------")
 
-            while time_elapsed <= DRAIN_TIME and moisture > TARGET_MOISTURE + 0.1:
-                current_time = start_time + timedelta(minutes=time_elapsed)
+            while time_elapsed <= DRAIN_TIME and moisture > self.target_moisture + 0.1:
                 temp = TEMP_START - ((TEMP_START - TEMP_END) / DRAIN_TIME) * time_elapsed
 
                 drained = min(whey_drained_per_interval * random.uniform(0.95, 1.05), whey_remaining)
@@ -49,10 +49,10 @@ class WheyDrainer:
                 curd_loss = curd * random.uniform(0.002, 0.005)
                 curd -= curd_loss
 
-                moisture = max(TARGET_MOISTURE, moisture - moisture_drop_per_interval * random.uniform(0.95, 1.05))
+                moisture = max(self.target_moisture, moisture - moisture_drop_per_interval * random.uniform(0.95, 1.05))
 
                 # Logging
-                print(f"{current_time.strftime('%Y-%m-%d %H:%M:%S')} | {time_elapsed:03d}       | {temp:7.1f} | "
+                print(f"{current_time.now()} | {time_elapsed:03d}       | {temp:7.1f} | "
                       f"{whey_remaining:12.1f}      | {curd:7.1f} | {moisture:9.1f}")
 
                 # Advance SimPy time
@@ -74,7 +74,7 @@ class WheyDrainer:
             yield self.output_store.put(batch_result)
 
     @staticmethod
-    def run(env, input_store, output_store):
-        machine = WheyDrainer(env, input_store, output_store)
+    def run(env, input_store, output_store, clock, target_moisture):
+        machine = WheyDrainer(env, input_store, output_store, clock, target_moisture)
         env.process(machine.process())
         return machine

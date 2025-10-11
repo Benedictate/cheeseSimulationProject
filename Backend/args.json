@@ -1,20 +1,27 @@
 {
   "global": {
     "time_mode": 0,
-    "simulation_time": 6000
+    "simulation_time": 6000,
+    "milk_to_process": 50000
   },
   "machines": {
-    "pasteuriser": {},
+    "pasteuriser": {
+      "temp_optimal": 72,
+      "flow_rate": 41.7
+    },
     "cheese_vat": {
       "vat_batch_size": 10000,
-      "anomaly_probability": 10
+      "anomaly_probability": 10,
+      "optimal_ph": 6.55,
+      "milk_flow_rate": 5
     },
     "curd_cutter": {
       "blade_wear_rate": 0.1,
       "auger_speed": 50
     },
     "whey_drainer": {
-      "target_mass": 1000
+      "target_mass": 1000,
+      "target_moisture": 58.0
     },
     "cheddaring": {},
     "salting_machine": {
@@ -23,8 +30,12 @@
       "flow_rate": 50.0
     },
     "cheese_presser": {
-      "block_weight": 27
+      "block_weight": 27,
+      "mold_count": 5,
+      "anomaly_chance": 0.1
     },
-    "ripener": {}
+    "ripener": {
+      "initial_temp": 10
+    }
   }
 }

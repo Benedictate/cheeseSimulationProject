@@ -3,20 +3,19 @@ import random
 env = simpy.Environment()
 input = simpy.Store(env)
 output = simpy.Store(env)
-input.items = [1000, 1000, 1000, 1000]
 class CheeseVat:
-    def __init__(self, input_store, output_store):
+    def __init__(self, input_store, output_store, optimal_ph, milk_flow_rate, anolamy_probability):
         self.input = input_store
         self.output = output_store
         self.STEP_DURATION_SEC = 15
-        self.MILK_FLOW_RATE = 5.0
+        self.MILK_FLOW_RATE = milk_flow_rate
         self.MILK_PER_STEP = self.MILK_FLOW_RATE * self.STEP_DURATION_SEC
         self.INITIAL_TEMP = 20.0
         self.TEMP_OPTIMAL_MIN = 31.0
         self.TEMP_OPTIMAL_MAX = 33.0
         self.TEMP_COOKING = 39.0
         self.INITIAL_PH = 6.70
-        self.OPTIMAL_PH = 6.55
+        self.OPTIMAL_PH = optimal_ph
         self.BASE_MILK_CONVERSION_RATE = 0.02
         self.BASE_WHEY_RELEASE_RATE = 0.02  
         self.BASE_WHEY_DRAIN_RATE = 0.05 
@@ -534,9 +533,9 @@ class CheeseVat:
             yield self.output.put(curd_amount)
 
     @staticmethod
-    def run(env, input_store, output_store, anomaly_probability=None):
+    def run(env, input_store, output_store, optimal_ph, milk_flow_rate, anomaly_probability=None):
         """Create a CheeseVat and start its process in the given environment."""
-        vat = CheeseVat(input_store, output_store)
+        vat = CheeseVat(input_store, output_store, optimal_ph, milk_flow_rate, anomaly_probability)
         if anomaly_probability is None:
             anomaly_probability = vat.DEFAULT_ANOMALY_PROBABILITY
         process = env.process(vat.cheese_vat_process(env, anomaly_probability))

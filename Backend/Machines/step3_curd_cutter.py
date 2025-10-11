@@ -6,12 +6,13 @@ import os
 from datetime import datetime, timezone
 
 class CurdCutter:
-    def __init__(self, env, input_conveyor, output_conveyor, avg_blade_wear_rate=0.1, base_auger_speed=50):
+    def __init__(self, env, input_conveyor, output_conveyor, clock, avg_blade_wear_rate=None, base_auger_speed=None):
         self.env = env
         self.input_conveyor = input_conveyor
         self.output_conveyor = output_conveyor
         self.avg_blade_wear_rate = avg_blade_wear_rate
         self.base_auger_speed = base_auger_speed
+        self.clock = clock()
         self.per_curd_logs = []
         self.batch_logs = []
 
@@ -68,7 +69,7 @@ class CurdCutter:
                 'avg_temp_C': batch['avg_temperature'],
                 'final_pH': batch['final_pH'],
                 'anomalies_handled': batch['anomalies'],
-                'sim_utc_timestamp': datetime.now(timezone.utc).isoformat()
+                'sim_utc_timestamp': self.clock.now()
             }
 
             self.batch_logs.append(batch_summary)
@@ -84,7 +85,7 @@ class CurdCutter:
             'curd_mass': curd['curd_mass'],
             'whey_mass': curd['whey_mass'],
             'anomaly_response': curd['anomaly_response'],
-            'utc_time': datetime.now(timezone.utc).isoformat()
+            'utc_time': self.clock.now()
         }
 
     def save_logs(self, folder='data/curd_cutter'):
@@ -99,7 +100,7 @@ class CurdCutter:
         print(f"Logs saved to {folder}")
 
     @staticmethod
-    def run(env, input_conveyor, output_conveyor, avg_blade_wear_rate=0.1, base_auger_speed=50):
-        machine = CurdCutter(env, input_conveyor, output_conveyor, avg_blade_wear_rate, base_auger_speed)
+    def run(env, input_conveyor, output_conveyor, clock, avg_blade_wear_rate=0.1, base_auger_speed=50):
+        machine = CurdCutter(env, input_conveyor, output_conveyor, clock, avg_blade_wear_rate, base_auger_speed)
         env.process(machine.process_batch())
         return machine
