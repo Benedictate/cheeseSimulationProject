@@ -13,8 +13,7 @@ sys.stdout = log_file
 
 def load_defaults(filename="args.json"):
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    path = os.path.join(base_dir, filename)
-    with open(path) as f:
+    with open(os.path.join(base_dir, filename)) as f:
         return json.load(f)
     
 
@@ -22,11 +21,9 @@ def load_defaults(filename="args.json"):
 MAX_FLOW_RATE = 181.5
 
 def main(args=None):
-
-    defaults = load_defaults()
-
+    
     if args is None:
-        args = defaults
+        args = load_defaults()
 
     env = create_env(args["global"]["time_mode"], 60, True)
 
@@ -139,6 +136,5 @@ def main(args=None):
         json.dump(array, f, indent=4)
 
 if __name__ == "__main__":
-    args = load_defaults("args.json")
-    main(args)
+    main()
     
