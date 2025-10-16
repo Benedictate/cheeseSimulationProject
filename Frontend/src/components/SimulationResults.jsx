@@ -1,33 +1,55 @@
-"use client"
+"use client";
 
-import { useState } from "react"
+import { useState, useEffect } from "react";
 
 function SimulationResults({ results, isRunning }) {
-  const [logExpanded, setLogExpanded] = useState(false)
-
+  const [logExpanded, setLogExpanded] = useState(false);
+  const [fetchedResults, setFetchedResults] = useState(null);
+  const backendUrl = "http://localhost:3001";
   // 🩵 Early fallback if no data
+  useEffect(() => {
+    const fetchResults = async () => {
+      try {
+        const res = await fetch(`${backendUrl}/api/results`);
+        const json = await res.json();
+        if (json.success) {
+          setFetchedResults(json.data || json.log_data || json);
+          console.log("✅ Loaded results after simulation start:", json);
+        } else {
+          console.warn("⚠️ No results found yet");
+        }
+      } catch (err) {
+        console.error("❌ Error fetching results:", err);
+      }
+    };
+    // ✅ Only trigger when simulation just starts
+    if (isRunning) fetchResults();
+  }, [isRunning, backendUrl]);
+
   if (!results || Object.keys(results).length === 0) {
     return (
       <div className="card">
         <h2>📊 Simulation Results</h2>
         <div className="no-data">
-          {isRunning ? "⏳ Waiting for simulation data..." : "🎯 Start a simulation to see results"}
+          {isRunning
+            ? "⏳ Waiting for simulation data..."
+            : "🎯 Start a simulation to see results"}
         </div>
       </div>
-    )
+    );
   }
 
   // 🧩 Normalize structure (handles both live + final payloads)
-  const progress = results.progress ?? results.current_progress ?? 0
-  const finalResults = results.final_results || results
+  const progress = results.progress ?? results.current_progress ?? 0;
+  const finalResults = results.final_results || results;
+  const displayResults = { log_data: fetchedResults };
 
   // 🩵 Helpful debug output in console
-  console.log("🔍 Rendering SimulationResults:", results)
+  console.log("🔍 Rendering SimulationResults:", displayResults);
 
   return (
     <div className="card">
       <h2>📊 Simulation Results</h2>
-
       {/* Real-time Status */}
       {isRunning && (
         <div className="real-time-status">
@@ -65,12 +87,14 @@ function SimulationResults({ results, isRunning }) {
               <span>{results.status || "Processing..."}</span>
             </div>
             <div className="progress-bar">
-              <div className="progress-fill" style={{ width: `${progress}%` }}></div>
+              <div
+                className="progress-fill"
+                style={{ width: `${progress}%` }}
+              ></div>
             </div>
           </div>
         </div>
       )}
-
       {/* Final Results */}
       {finalResults && (
         <div className="final-results">
@@ -110,8 +134,12 @@ function SimulationResults({ results, isRunning }) {
             <div className="process-log">
               <div className="log-header">
                 <h4>📋 Process Log</h4>
-                <button className="btn btn-secondary" onClick={() => setLogExpanded(!logExpanded)}>
-                  {logExpanded ? "▼ Collapse" : "▶ Expand"} ({finalResults.log_data.length} entries)
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setLogExpanded(!logExpanded)}
+                >
+                  {logExpanded ? "▼ Collapse" : "▶ Expand"} (
+                  {finalResults.log_data.length} entries)
                 </button>
               </div>
 
@@ -143,14 +171,26 @@ function SimulationResults({ results, isRunning }) {
           )}
         </div>
       )}
-
       {/* 🩵 Debug fallback - remove later */}
       <details style={{ marginTop: "1rem", fontSize: "0.85rem", opacity: 0.8 }}>
         <summary>Raw data (debug)</summary>
-        <pre>{JSON.stringify(results, null, 2)}</pre>
-      </details>
+        <pre>
+          {JSON.stringify(
+            fetchedResults ||
+              displayResults.log_data ||
+              displayResults.data ||
+              {},
+            null,
+            2
+          )}
+        </pre>
+      </details>{" "}
+      {/* <details style={{ marginTop: "1rem", fontSize: "0.85rem", opacity: 0.8 }}>
+        <summary>Raw data (debug)</summary>
+        <pre>{JSON.stringify(results, null, 2)}</pre>{" "}
+      </details> */}
     </div>
-  )
+  );
 }
 
-export default SimulationResults
+export default SimulationResults;

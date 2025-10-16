@@ -18,7 +18,7 @@ function App() {
   const backendUrl =
     process.env.REACT_APP_BACKEND_URL || "http://localhost:3001";
 
-  useMqttResults(setSimulationResults);
+  // useMqttResults(setSimulationResults);
 
   // Default parameters
   const [parameters, setParameters] = useState({
@@ -26,7 +26,6 @@ function App() {
       time_mode: 0,
       simulation_time: 6000,
       milk_to_process: 60000,
-
     },
     machines: {
       pasteuriser: {
@@ -64,8 +63,7 @@ function App() {
     },
   });
 
-  
-   // --- Health check ---
+  // --- Health check ---
   const checkConnection = async () => {
     try {
       const response = await fetch(`${backendUrl}/api/health`);
@@ -93,14 +91,21 @@ function App() {
 
         if (data.results?.completed) {
           setSimulationRunning(false);
+          // 🧩 Fetch the final results
+          const res = await fetch(`${backendUrl}/api/results`);
+          const json = await res.json();
+          if (json.success) {
+            setSimulationResults(json);
+          } else {
+            console.warn("No results available yet");
+          }
         }
       }
     } catch (err) {
       console.error("Error polling simulation status:", err);
     }
-  }; 
+  };
 
-  
   useEffect(() => {
     console.log("Connecting to MQTT...");
     const client = mqtt.connect("ws://localhost:9001");

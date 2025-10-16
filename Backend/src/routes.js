@@ -1,6 +1,6 @@
 const express = require("express");
 const { spawn } = require("child_process");
-const { startSim, stopSim , getSimState} = require("./pythonHandler");
+const { startSim, stopSim, getSimState } = require("./pythonHandler");
 const router = express.Router();
 
 /**
@@ -99,8 +99,40 @@ router.post("/stop-simulation", async (req, res) => {
  */
 router.get("/simulation-status", (req, res) => {
   res.json({
-     running: getSimState().isRunning 
+    running: getSimState().isRunning,
   });
 });
 
+const fs = require("fs");
+const path = require("path");
+
+router.get("/results", (req, res) => {
+  try {
+    const filePath = path.resolve(
+      "/app/Backend/data/salting_and_mellowing_data.json"
+    );
+
+    if (!fs.existsSync(filePath)) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Results file not found" });
+    }
+
+    let data = fs.readFileSync(filePath, "utf8").trim();
+
+    // ✅ Ensure valid JSON: wrap raw comma-separated data in brackets
+    if (!data.startsWith("[")) {
+      data = `[${data}`;
+    }
+    if (!data.endsWith("]")) {
+      data = `${data}]`;
+    }
+
+    const parsed = JSON.parse(data);
+    res.json({ success: true, data: parsed });
+  } catch (err) {
+    console.error("❌ Error reading results:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 module.exports = router;

@@ -10,7 +10,7 @@ function startSim(inputData) {
     if (isRunning) return reject(new Error("Simulation already running"));
 
     console.log("🚀 Starting Python simulation...");
-    simProcess = spawn("python3", ["MainTest.py"]); // Adjust path if Main.py is elsewhere
+    simProcess = spawn("python3", ["Main.py"]); // Adjust path if Main.py is elsewhere
     isRunning = true;
 
     let buffer = "";
