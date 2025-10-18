@@ -1,6 +1,5 @@
 // pythonHandler.js
 const { spawn } = require("child_process");
-const { publishMessage } = require("./mqtt"); // optional, if MQTT is active
 
 let simProcess = null;
 let isRunning = false;
@@ -22,6 +21,8 @@ function startSim(inputData) {
         try {
           const parsed = JSON.parse(line);
           console.log("📤 Python Output:", parsed);
+
+          const { publishMessage } = require("./mqtt");
 
           // Optionally publish updates to MQTT
           publishMessage?.("simulation/results", parsed);
