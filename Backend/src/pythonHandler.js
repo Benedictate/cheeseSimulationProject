@@ -1,6 +1,5 @@
 // pythonHandler.js
 const { spawn } = require("child_process");
-const { publishMessage } = require("./mqtt"); // optional, if MQTT is active
 
 let simProcess = null;
 let isRunning = false;
@@ -8,9 +7,9 @@ let isRunning = false;
 function startSim(inputData) {
   return new Promise((resolve, reject) => {
     if (isRunning) return reject(new Error("Simulation already running"));
-
+    console.log("🐍 Starting Python simulation with input:", inputData) ;
     console.log("🚀 Starting Python simulation...");
-    simProcess = spawn("python3", ["Main.py"]); // Adjust path if Main.py is elsewhere
+    simProcess = spawn("python3", ["MainTest.py"]); // Adjust path if Main.py is elsewhere
     isRunning = true;
 
     let buffer = "";
@@ -21,7 +20,9 @@ function startSim(inputData) {
         if (!line.trim()) continue;
         try {
           const parsed = JSON.parse(line);
-          console.log("📤 Python Output:", parsed);
+          //console.log("📤 Python Output:", parsed);
+
+          const { publishMessage } = require("./mqtt");
 
           // Optionally publish updates to MQTT
           publishMessage?.("simulation/results", parsed);
