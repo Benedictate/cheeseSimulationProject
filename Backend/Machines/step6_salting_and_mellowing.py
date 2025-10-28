@@ -2,9 +2,10 @@ import simpy
 from datetime import datetime, timezone
 import json
 import os
+from helpers.ndjson_logger import build_standard_event
 
 class SaltingMachine:
-    def __init__(self, env, input_conveyor, clock, mellowing_conveyor, mellowing_output_conveyor, mellowing_time=None, salt_recipe=None):
+    def __init__(self, env, input_conveyor, clock, mellowing_conveyor, mellowing_output_conveyor, mellowing_time=None, salt_recipe=None, logger=None):
         self.env = env
         self.clock = clock()
         self.input_conveyor = input_conveyor
@@ -13,6 +14,7 @@ class SaltingMachine:
         self.mellowing_time = mellowing_time
         self.salt_recipe = salt_recipe
         self.observer = []
+        self.logger = logger
 
     def salt_dispenser(self):
         while True:
@@ -39,14 +41,26 @@ class SaltingMachine:
         yield self.mellowing_output_conveyor.put(curd_slice)
 
     def log(self, curd_slice, machine_stage):
-        self.observer.append({
-            'sim_time_min': self.env.now,
+        # Report whole minutes (integer)
+        event = {
+            'sim_time_min': int(self.env.now),
             'utc_time': self.clock.now(),
             'curd_id': curd_slice['id'],
             'mass': curd_slice['mass'],
             'salt': curd_slice['salt'],
             'machine': machine_stage
-        })
+        }
+        self.observer.append(event)
+        if self.logger:
+            self.logger.log_event(
+                build_standard_event(
+                    machine="salting_and_mellowing",
+                    sim_time_min=event['sim_time_min'],
+                    utc_time=event['utc_time'],
+                    salt_kg=event['salt'],
+                    extra={"curd_id": event['curd_id'], "mass": event['mass'], "stage": machine_stage},
+                )
+            )
 
     def save_observations_to_json(self, filename='Backend/data/salting_and_mellowing_data.json'):
         folder = os.path.dirname(filename)
@@ -59,11 +73,11 @@ class SaltingMachine:
         print(f"Observations saved to {filename}")
 
     @staticmethod
-    def run(env, input_conveyor, salting_output, clock, mellowing_time=10, salt_recipe=0.033):
+    def run(env, input_conveyor, salting_output, clock, mellowing_time=10, salt_recipe=0.033, logger=None):
         mellowing_conveyor = simpy.Store(env)
 
         machine = SaltingMachine(env, input_conveyor, clock, mellowing_conveyor, salting_output,
-                                 mellowing_time=mellowing_time, salt_recipe=salt_recipe)
+                                 mellowing_time=mellowing_time, salt_recipe=salt_recipe, logger=logger)
 
         env.process(machine.salt_dispenser())
         return machine  # return instance in case you want to inspect `.observer` or save logs

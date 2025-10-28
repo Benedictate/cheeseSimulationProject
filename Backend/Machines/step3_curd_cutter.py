@@ -1,20 +1,21 @@
 import simpy
 import random
 import json
-import csv
 import os
 from datetime import datetime, timezone
+from helpers.ndjson_logger import build_standard_event
 
 class CurdCutter:
-    def __init__(self, env, input_conveyor, output_conveyor, clock, avg_blade_wear_rate=None, base_auger_speed=None):
+    def __init__(self, env, input_conveyor, output_conveyor, avg_blade_wear_rate=None, base_auger_speed=None, clock=None, logger=None):
         self.env = env
         self.input_conveyor = input_conveyor
         self.output_conveyor = output_conveyor
         self.avg_blade_wear_rate = avg_blade_wear_rate
         self.base_auger_speed = base_auger_speed
-        self.clock = clock()
-        self.per_curd_logs = []
+        self.clock = clock() if clock else None
+        self.observer = []
         self.batch_logs = []
+        self.logger = logger
 
     def process_batch(self):
         while True:
@@ -52,10 +53,26 @@ class CurdCutter:
                     'anomaly_response': batch['anomalies']
                 }
 
-                self.per_curd_logs.append(self._log_per_curd(curd_data))
+                utc_time = self.clock.now() if self.clock else datetime.now(timezone.utc).isoformat()
+
+                self.observer.append({
+                    'sim_time_min': self.env.now,
+                    'utc_time': utc_time,
+                    'curd_id': curd_data['curd_id'],
+                    'batch_id': curd_data['batch_id'],
+                    'blade_sharpness': curd_data['blade_sharpness'],
+                    'auger_speed': curd_data['auger_speed'],
+                    'curd_mass': curd_data['curd_mass'],
+                    'whey_mass': curd_data['whey_mass'],
+                    'anomaly_response': curd_data['anomaly_response'],
+                    'machine': 'curd_cutter'
+                })
+                
                 yield self.output_conveyor.put(curd_data)
 
             end_time = self.env.now
+
+            utc_time = self.clock.now() if self.clock else datetime.now(timezone.utc).isoformat()
 
             batch_summary = {
                 'batch_id': batch['batch_id'],
@@ -69,38 +86,50 @@ class CurdCutter:
                 'avg_temp_C': batch['avg_temperature'],
                 'final_pH': batch['final_pH'],
                 'anomalies_handled': batch['anomalies'],
-                'sim_utc_timestamp': self.clock.now()
+                'sim_utc_timestamp': utc_time
             }
 
             self.batch_logs.append(batch_summary)
+            if self.logger:
+                temp_c = batch.get('avg_temp_C', batch.get('avg_temperature', 0))
+                self.logger.log_event(
+                    build_standard_event(
+                        machine='curd_cutter',
+                        sim_time_min=self.env.now,
+                        utc_time=utc_time,
+                        batch_id=batch['batch_id'],
+                        milk_L=total_mass,
+                        curd_L=round(total_curd, 2),
+                        whey_L=round(total_whey, 2),
+                        pH=batch.get('final_pH', 0),
+                        temperature_C=temp_c,
+                        extra={'curd_yield_percent': batch_summary['curd_yield_%']},
+                    )
+                )
             print(f"[{self.env.now:.2f}] Finished cutting batch {batch['batch_id']}")
 
-    def _log_per_curd(self, curd):
-        return {
-            'sim_time_min': self.env.now,
-            'curd_id': curd['curd_id'],
-            'batch_id': curd['batch_id'],
-            'blade_sharpness': curd['blade_sharpness'],
-            'auger_speed': curd['auger_speed'],
-            'curd_mass': curd['curd_mass'],
-            'whey_mass': curd['whey_mass'],
-            'anomaly_response': curd['anomaly_response'],
-            'utc_time': self.clock.now()
-        }
+    def save_observations_to_json(self, filename='Backend/data/curd_cutter_data.json'):
+        folder = os.path.dirname(filename)
+        if folder:
+            os.makedirs(folder, exist_ok=True)
 
-    def save_logs(self, folder='data/curd_cutter'):
-        os.makedirs(folder, exist_ok=True)
+        with open(filename, 'w') as f:
+            json.dump(self.observer, f, indent=4)
 
-        with open(os.path.join(folder, 'per_curd_log.json'), 'w') as f:
-            json.dump(self.per_curd_logs, f, indent=4)
+        print(f"Observations saved to {filename}")
+    
+    def save_batch_logs_to_json(self, filename='Backend/data/curd_cutter_batch_data.json'):
+        folder = os.path.dirname(filename)
+        if folder:
+            os.makedirs(folder, exist_ok=True)
 
-        with open(os.path.join(folder, 'cutter_batch_log.json'), 'w') as f:
+        with open(filename, 'w') as f:
             json.dump(self.batch_logs, f, indent=4)
 
-        print(f"Logs saved to {folder}")
+        print(f"Batch logs saved to {filename}")
 
     @staticmethod
-    def run(env, input_conveyor, output_conveyor, clock, avg_blade_wear_rate=0.1, base_auger_speed=50):
-        machine = CurdCutter(env, input_conveyor, output_conveyor, clock, avg_blade_wear_rate, base_auger_speed)
+    def run(env, input_conveyor, output_conveyor, clock, avg_blade_wear_rate=0.1, base_auger_speed=50, logger=None):
+        machine = CurdCutter(env, input_conveyor, output_conveyor, avg_blade_wear_rate, base_auger_speed, clock, logger)
         env.process(machine.process_batch())
         return machine

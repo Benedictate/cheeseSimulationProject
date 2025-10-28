@@ -9,7 +9,8 @@ function startSim(inputData) {
     if (isRunning) return reject(new Error("Simulation already running"));
     console.log("🐍 Starting Python simulation with input:", inputData) ;
     console.log("🚀 Starting Python simulation...");
-    simProcess = spawn("python3", ["MainTest.py"]); // Adjust path if Main.py is elsewhere
+    // Use Main.py and unbuffered stdout; run in backend cwd
+    simProcess = spawn("python3", ["-u", "Main.py"], { cwd: __dirname + "/.." });
     isRunning = true;
 
     let buffer = "";
@@ -42,7 +43,7 @@ function startSim(inputData) {
       simProcess = null;
     });
 
-    // send initial data
+    // send initial data (ensure newline to satisfy readline or full read)
     simProcess.stdin.write(JSON.stringify(inputData));
     simProcess.stdin.end();
 

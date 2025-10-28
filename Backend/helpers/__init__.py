@@ -7,4 +7,5 @@ from .cheddaring_to_salting import cheddaring_to_salting
 from .salting_to_presser import salting_to_presser
 from .presser_to_ripener import presser_to_ripener
 from .clock import Clock
+from .ndjson_logger import NdjsonLogger
 

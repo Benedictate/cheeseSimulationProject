@@ -25,7 +25,11 @@ router.post("/start-simulation", async (req, res) => {
     console.log(JSON.stringify(config, null, 2)) // pretty print
 
     const py = spawn("python3", ["-u", "Main.py"], {
-      cwd: path.join(__dirname, ".."), // Run from backend directory where Main.py is located
+      cwd: path.join(__dirname, ".."),
+      env: {
+        ...process.env,
+        PYTHONUNBUFFERED: "1",
+      },
     })
 
     let errorOutput = ""
