@@ -3,7 +3,9 @@
 import { useState } from "react"
 
 function SimulationForm() {
-  const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001"
+  const backendUrl =
+    import.meta.env.VITE_BACKEND_URL ||
+    `${window.location.protocol}//${window.location.hostname}:3001`
   const [showSuccess, setShowSuccess] = useState(false)
   const [error, setError] = useState(null)
   const [isLoading, setIsLoading] = useState(false)

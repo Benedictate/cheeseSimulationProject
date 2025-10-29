@@ -1,12 +1,19 @@
 import simpy
 import random
+import json
+import os
+from helpers.ndjson_logger import build_standard_event
+from datetime import datetime, timezone
+
 env = simpy.Environment()
 input = simpy.Store(env)
 output = simpy.Store(env)
+
 class CheeseVat:
-    def __init__(self, input_store, output_store, optimal_ph, milk_flow_rate, anolamy_probability):
+    def __init__(self, input_store, output_store, optimal_ph, milk_flow_rate, anomaly_probability, clock=None, logger=None):
         self.input = input_store
         self.output = output_store
+        self.clock = clock() if clock else None
         self.STEP_DURATION_SEC = 15
         self.MILK_FLOW_RATE = milk_flow_rate
         self.MILK_PER_STEP = self.MILK_FLOW_RATE * self.STEP_DURATION_SEC
@@ -27,6 +34,10 @@ class CheeseVat:
             "cutting": 2, "stirring": 2, "whey_release": 2
         }
         self.MAX_STEPS_PER_PHASE = 1000
+        
+        self.observer = []
+        self.logger = logger
+        
     def format_sim_time(self, sim_time):
         """Convert simulation time to HH:MM:SS format."""
         total_seconds = sim_time * self.STEP_DURATION_SEC
@@ -35,6 +46,37 @@ class CheeseVat:
         seconds = total_seconds % 60
         return f"{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}"
 
+    def log(self, env, phase, milk_amount, whey_amount, curd_amount, temperature, pH, anomalies):
+        utc_time = self.clock.now() if self.clock else datetime.now(timezone.utc).isoformat()
+        
+        # CheeseVat also uses 15-second steps; normalize to whole minutes (integer)
+        event = {
+            'sim_time_min': int(env.now // (60 // self.STEP_DURATION_SEC)),
+            'utc_time': utc_time,
+            'phase': phase,
+            'milk_L': round(milk_amount, 2),
+            'whey_L': round(whey_amount, 2),
+            'curd_L': round(curd_amount, 2),
+            'temperature_C': round(temperature, 2),
+            'pH': round(pH, 2),
+            'anomalies': ', '.join(anomalies) if anomalies else 'None',
+            'machine': 'cheese_vat'
+        }
+        self.observer.append(event)
+        if self.logger:
+            self.logger.log_event(
+                build_standard_event(
+                    machine='cheese_vat',
+                    sim_time_min=event['sim_time_min'],
+                    utc_time=event['utc_time'],
+                    milk_L=event['milk_L'],
+                    whey_L=event['whey_L'],
+                    curd_L=event['curd_L'],
+                    temperature_C=event['temperature_C'],
+                    pH=event['pH'],
+                    extra={'phase': phase, 'anomalies': event['anomalies']},
+                )
+            )
 
     def cheese_vat_process(self, env, anomaly_probability):
         """Cheese vat simulation for cheddar production."""
@@ -100,6 +142,7 @@ class CheeseVat:
             # --- Step 1: Fill the vat ---
             # Start with empty vat
             print(f"{self.format_sim_time(env.now):<15} {'Filling Vat':<50} {milk_amount:<20.2f} {whey_amount:<20.2f} {curd_amount:<20.2f} {temperature:<15.1f} {pH:<10.2f}")
+            self.log(env, 'Filling Vat', milk_amount, whey_amount, curd_amount, temperature, pH, anomalies)
             
             # Calculate first milk addition
             pending_changes["milk"] = self.MILK_PER_STEP
@@ -119,6 +162,7 @@ class CheeseVat:
                 
                 if milk_amount < self.TOTAL_MILK:
                     print(f"{self.format_sim_time(env.now):<15} {'Filling Vat':<50} {milk_amount:<20.2f} {whey_amount:<20.2f} {curd_amount:<20.2f} {temperature:<15.1f} {pH:<10.2f}")
+                    self.log(env, 'Filling Vat', milk_amount, whey_amount, curd_amount, temperature, pH, anomalies)
             
             # --- Step 2: Set temperature ---    
             # Temperature anomaly check with improved selection
@@ -153,12 +197,11 @@ class CheeseVat:
                     pending_changes["temp"] = max(-temp_step, target_temp - temperature)
                 
                 print(f"{self.format_sim_time(env.now):<15} {'Heating Milk':<50} {milk_amount:<20.2f} {whey_amount:<20.2f} {curd_amount:<20.2f} {temperature:<15.1f} {pH:<10.2f} {', '.join(anomalies):<100}")
+                self.log(env, 'Heating Milk', milk_amount, whey_amount, curd_amount, temperature, pH, anomalies)
                 yield env.timeout(1)
             
             # Ensure we hit the exact target
             temperature = round(target_temp, 1)
-            
-            # [Rest of the simulation logic remains exactly the same - continuing with rennet dosing, coagulation, cutting, stirring, whey release, and final report]
             
             # --- Step 3: Rennet dosing and stirring ---
             # Rennet anomaly check with improved selection
@@ -183,11 +226,13 @@ class CheeseVat:
                 pending_changes["ph"] = 0
                 
                 print(f"{self.format_sim_time(env.now):<15} {'Rennet Dosing':<50} {milk_amount:<20.2f} {whey_amount:<20.2f} {curd_amount:<20.2f} {temperature:<15.1f} {pH:<10.2f} {', '.join(anomalies):<100}")
+                self.log(env, 'Rennet Dosing', milk_amount, whey_amount, curd_amount, temperature, pH, anomalies)
                 yield env.timeout(1)
             
             # Gentle stirring (fixed time - 5 minutes)
             for step in range(20):  # 5 minutes = 20 steps
                 print(f"{self.format_sim_time(env.now):<15} {'Gentle Stirring (for rennet)':<50} {milk_amount:<20.2f} {whey_amount:<20.2f} {curd_amount:<20.2f} {temperature:<15.1f} {pH:<10.2f} {', '.join(anomalies):<100}")
+                self.log(env, 'Gentle Stirring (for rennet)', milk_amount, whey_amount, curd_amount, temperature, pH, anomalies)
                 yield env.timeout(1)
             
             # --- Step 4: Coagulation ---
@@ -249,6 +294,7 @@ class CheeseVat:
                     pending_changes["whey"] = milk_converted * (1 - curd_factor)
                 
                 print(f"{self.format_sim_time(env.now):<15} {description:<50} {milk_amount:<20.2f} {whey_amount:<20.2f} {curd_amount:<20.2f} {temperature:<15.1f} {pH:<10.2f} {', '.join(anomalies):<100}")
+                self.log(env, description, milk_amount, whey_amount, curd_amount, temperature, pH, anomalies)
                 yield env.timeout(1)
                 step_count += 1
             
@@ -263,8 +309,6 @@ class CheeseVat:
             # Ensure milk is completely gone
             if milk_amount < 0.1:
                 milk_amount = 0
-            
-            # [Continue with all remaining phases: cutting, stirring, whey release, and final report - exact same logic]
             
             # --- Step 5: Cutting phase ---
             # Check for cutting anomaly
@@ -317,6 +361,7 @@ class CheeseVat:
                     desc = cutting_desc
                 
                 print(f"{self.format_sim_time(env.now):<15} {desc:<50} {milk_amount:<20.2f} {whey_amount:<20.2f} {curd_amount:<20.2f} {temperature:<15.1f} {pH:<10.2f} {', '.join(anomalies):<100}")
+                self.log(env, desc, milk_amount, whey_amount, curd_amount, temperature, pH, anomalies)
                 yield env.timeout(1)
                 step_count += 1
             
@@ -372,6 +417,7 @@ class CheeseVat:
                     pending_changes["temp"] = max(-temp_step, self.TEMP_COOKING - temperature)
                 
                 print(f"{self.format_sim_time(env.now):<15} {'Cooking (heating temperature)':<50} {milk_amount:<20.2f} {whey_amount:<20.2f} {curd_amount:<20.2f} {temperature:<15.1f} {pH:<10.2f} {', '.join(anomalies):<100}")
+                self.log(env, 'Cooking (heating temperature)', milk_amount, whey_amount, curd_amount, temperature, pH, anomalies)
                 yield env.timeout(1)
             
             # Ensure we hit the exact target
@@ -421,6 +467,7 @@ class CheeseVat:
                     desc = "Stirring and Cooking"
                 
                 print(f"{self.format_sim_time(env.now):<15} {desc:<50} {milk_amount:<20.2f} {whey_amount:<20.2f} {curd_amount:<20.2f} {temperature:<15.1f} {pH:<10.2f} {', '.join(anomalies):<100}")
+                self.log(env, desc, milk_amount, whey_amount, curd_amount, temperature, pH, anomalies)
                 yield env.timeout(1)
                 step_count += 1
             
@@ -498,6 +545,7 @@ class CheeseVat:
                     desc = "Whey Release"
                 
                 print(f"{self.format_sim_time(env.now):<15} {desc:<50} {milk_amount:<20.2f} {whey_amount:<20.2f} {curd_amount:<20.2f} {temperature:<15.1f} {pH:<10.2f} {', '.join(anomalies):<100}")
+                self.log(env, desc, milk_amount, whey_amount, curd_amount, temperature, pH, anomalies)
                 yield env.timeout(1)
                 step_count += 1
             
@@ -513,6 +561,7 @@ class CheeseVat:
             
             # --- Step 8: Curd storage ---
             print(f"{self.format_sim_time(env.now):<15} {'Curd Stored for Processing':<50} {milk_amount:<20.2f} {whey_amount:<20.2f} {curd_amount:<20.2f} {temperature:<15.1f} {pH:<10.2f} {', '.join(anomalies):<100}")
+            self.log(env, 'Curd Stored for Processing', milk_amount, whey_amount, curd_amount, temperature, pH, anomalies)
             
             # --- Final Report ---
             print("\n" + "=" * 150)
@@ -532,12 +581,19 @@ class CheeseVat:
             
             yield self.output.put(curd_amount)
 
-    @staticmethod
-    def run(env, input_store, output_store, optimal_ph, milk_flow_rate, anomaly_probability=None):
-        """Create a CheeseVat and start its process in the given environment."""
-        vat = CheeseVat(input_store, output_store, optimal_ph, milk_flow_rate, anomaly_probability)
-        if anomaly_probability is None:
-            anomaly_probability = vat.DEFAULT_ANOMALY_PROBABILITY
-        process = env.process(vat.cheese_vat_process(env, anomaly_probability))
-        return vat, process
+    def save_observations_to_json(self, filename='Backend/data/cheese_vat_data.json'):
+        folder = os.path.dirname(filename)
+        if folder:
+            os.makedirs(folder, exist_ok=True)
 
+        with open(filename, 'w') as f:
+            json.dump(self.observer, f, indent=4)
+
+        print(f"Observations saved to {filename}")
+
+    @staticmethod
+    def run(env, input_store, output_store, optimal_ph, milk_flow_rate, anomaly_probability=None, clock=None, logger=None):
+        """Create a CheeseVat and start its process in the given environment."""
+        vat = CheeseVat(input_store, output_store, optimal_ph, milk_flow_rate, anomaly_probability or 10, clock, logger)
+        env.process(vat.cheese_vat_process(env, anomaly_probability or vat.DEFAULT_ANOMALY_PROBABILITY))
+        return vat

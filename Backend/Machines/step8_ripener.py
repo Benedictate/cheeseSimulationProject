@@ -1,4 +1,6 @@
 import simpy
+import json
+import os
 
 class Ripener:
 
@@ -21,6 +23,7 @@ class Ripener:
         self.clock = clock()
         self.initial_temp = initial_temp
         self.env = env
+        self.observer = []
 
     @staticmethod
     def format_sim_time(sim_time):
@@ -40,7 +43,6 @@ class Ripener:
         status = "Adding pressed cheeses to shelves..."
 
         # Header
-        #print(f"{'Time':<8}                   {'Intake (KG)':<14} {'Total Ripening (KG)':<14}{'Temp (°C)':<10} Status")
         print("-" * 95)
 
         # Processing loop
@@ -48,6 +50,16 @@ class Ripener:
             yield self.env.timeout(self.STEP_DURATION_SEC)
 
             ripening += step_weight
+
+            self.observer.append({
+                'sim_time_min': self.env.now,
+                'utc_time': self.clock.now(),
+                'intake_kg': round(intake, 2),
+                'total_ripening_kg': round(ripening, 2),
+                'temperature_C': round(temperature, 2),
+                'status': status,
+                'machine': 'ripener'
+            })
 
             print(f"{self.clock.now()} {intake:<14.2f} {ripening:<14.2f} {temperature:<10.2f} {status}")
 
@@ -63,6 +75,16 @@ class Ripener:
                 print("The Cheese took 18 months to ripen.")
             elif temperature < self.TEMP_MIN_OPERATING:
                 print("The Cheese took too long to ripen.")
+
+    def save_observations_to_json(self, filename='Backend/data/ripener_data.json'):
+        folder = os.path.dirname(filename)
+        if folder:
+            os.makedirs(folder, exist_ok=True)
+
+        with open(filename, 'w') as f:
+            json.dump(self.observer, f, indent=4)
+
+        print(f"Observations saved to {filename}")
 
     @staticmethod
     def run(env, input_blocks, clock, initial_temp=None):
