@@ -119,7 +119,7 @@ def main(args=None):
     env.process(presser_to_ripener(env, presser_output, ripener_input))
 
     # Run ripener
-    ripener = Ripener.run(env, ripener_input, Clock, args["machines"]["ripener"]["initial_temp"])
+    ripener = Ripener.run(env, ripener_input, Clock, args["machines"]["ripener"]["initial_temp"], logger)
 
     # Centralized NDJSON logging is handled per machine; no test writer needed
 
