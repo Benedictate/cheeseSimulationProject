@@ -1,6 +1,8 @@
 import simpy
 import json
 import os
+from helpers.ndjson_logger import build_standard_event
+from datetime import datetime, timezone
 
 class Ripener:
 
@@ -18,12 +20,13 @@ class Ripener:
     TEMP_DROP_PER_STEP = 1     # Cooling rate per step
     TEMP_RISE_WHEN_COLD = 1.5  # Reheating rate per step
 
-    def __init__(self, env, input_blocks, clock, initial_temp=None):
+    def __init__(self, env, input_blocks, clock, initial_temp=None, logger=None):
         self.incoming_blocks = input_blocks
         self.clock = clock()
         self.initial_temp = initial_temp
         self.env = env
         self.observer = []
+        self.logger = logger
 
     @staticmethod
     def format_sim_time(sim_time):
@@ -45,21 +48,62 @@ class Ripener:
         # Header
         print("-" * 95)
 
+        # Emit an immediate intake event so ripener appears even if the sim ends soon after handoff
+        first_event = {
+            'sim_time_min': int(self.env.now // self.STEPS_PER_MIN),
+            'utc_time': self.clock.now(),
+            'intake_kg': round(intake, 2),
+            'total_ripening_kg': round(ripening, 2),
+            'temperature_C': round(temperature, 2),
+            'status': status,
+            'machine': 'ripener'
+        }
+        self.observer.append(first_event)
+        if self.logger:
+            self.logger.log_event(
+                build_standard_event(
+                    machine='ripener',
+                    sim_time_min=first_event['sim_time_min'],
+                    utc_time=first_event['utc_time'],
+                    temperature_C=first_event['temperature_C'],
+                    output_weight_kg=first_event['total_ripening_kg'],
+                    extra={
+                        'intake_kg': first_event['intake_kg'],
+                        'status': status,
+                    },
+                )
+            )
+
         # Processing loop
         while True:
-            yield self.env.timeout(self.STEP_DURATION_SEC)
+            yield self.env.timeout(1)
 
             ripening += step_weight
 
-            self.observer.append({
-                'sim_time_min': self.env.now,
+            event = {
+                'sim_time_min': int(self.env.now // self.STEPS_PER_MIN),
                 'utc_time': self.clock.now(),
                 'intake_kg': round(intake, 2),
                 'total_ripening_kg': round(ripening, 2),
                 'temperature_C': round(temperature, 2),
                 'status': status,
                 'machine': 'ripener'
-            })
+            }
+            self.observer.append(event)
+            if self.logger:
+                self.logger.log_event(
+                    build_standard_event(
+                        machine='ripener',
+                        sim_time_min=event['sim_time_min'],
+                        utc_time=event['utc_time'],
+                        temperature_C=event['temperature_C'],
+                        output_weight_kg=event['total_ripening_kg'],
+                        extra={
+                            'intake_kg': event['intake_kg'],
+                            'status': status,
+                        },
+                    )
+                )
 
             print(f"{self.clock.now()} {intake:<14.2f} {ripening:<14.2f} {temperature:<10.2f} {status}")
 
@@ -87,8 +131,8 @@ class Ripener:
         print(f"Observations saved to {filename}")
 
     @staticmethod
-    def run(env, input_blocks, clock, initial_temp=None):
+    def run(env, input_blocks, clock, initial_temp=None, logger=None):
        
-        machine = Ripener(env, input_blocks, clock, initial_temp)
+        machine = Ripener(env, input_blocks, clock, initial_temp, logger)
         env.process(machine.ripening_process())
         return machine

@@ -21,6 +21,8 @@ class NdjsonLogger:
         open(self.ndjson_path, "w").close()
         # Global, monotonically increasing simulation minute index (1,2,3,...)
         self._sim_minute_sequence = 1
+        # Persist the latest known values across events to satisfy carry-forward requirement
+        self._last_state: Dict[str, Any] = {}
 
     def log_event(self, event: Dict[str, Any]) -> None:
         """Write a single normalized event as one NDJSON line.
@@ -30,14 +32,29 @@ class NdjsonLogger:
         preserved under 'env_time_min' and replaced with the global sequence to
         guarantee no duplicates as requested.
         """
-        if "sim_time_min" in event:
-            # Preserve original value for potential debugging/analysis
-            event["env_time_min"] = event["sim_time_min"]
+        # Carry forward: merge with last known state so unchanged fields persist
+        if self._last_state:
+            merged = dict(self._last_state)
+            merged.update(event)
+        else:
+            merged = dict(event)
+
+        # Normalize provided time field and preserve original
+        if "sim_time" in merged:
+            merged["env_time"] = merged["sim_time"]
+        elif "sim_time_min" in merged:
+            # Backward-compat for callers still sending sim_time_min
+            merged["env_time"] = merged["sim_time_min"]
         # Overwrite with unique global sequence number
-        event["sim_time_min"] = self._sim_minute_sequence
+        merged["sim_time"] = self._sim_minute_sequence
+        # Remove legacy key if present to avoid duplicates in output
+        if "sim_time_min" in merged:
+            del merged["sim_time_min"]
         self._sim_minute_sequence += 1
+        # Update last_state AFTER assigning sequence so it contains latest values
+        self._last_state = dict(merged)
         with open(self.ndjson_path, "a") as f:
-            json.dump(event, f)
+            json.dump(merged, f)
             f.write("\n")
             if self.stream:
                 f.flush()
@@ -54,8 +71,43 @@ class NdjsonLogger:
         with open(self.ndjson_path) as f:
             array = [json.loads(line) for line in f if line.strip()]
 
+        # Reorder by machine phases to avoid interleaving, preserving within-machine order
+        machine_order = [
+            "pasteuriser",
+            "cheese_vat",
+            "curd_cutter",
+            "whey_drainer",
+            "cheddaring_and_milling",
+            "salting_and_mellowing",
+            "cheese_presser",
+            "ripener",
+        ]
+
+        # Bucket by machine preserving original order
+        buckets: Dict[str, list] = {name: [] for name in machine_order}
+        others = []
+        for ev in array:
+            m = ev.get("machine")
+            if m in buckets:
+                buckets[m].append(ev)
+            else:
+                others.append(ev)
+
+        ordered: list = []
+        for name in machine_order:
+            ordered.extend(buckets[name])
+        # Append any unknown-machine events at the end in their original order
+        ordered.extend(others)
+
+        # Re-sequence sim_time to be strictly increasing in the final output
+        for idx, ev in enumerate(ordered, start=1):
+            # Preserve any prior value if present
+            if "sim_time" in ev and "finalized_prev_sim_time" not in ev:
+                ev["finalized_prev_sim_time"] = ev["sim_time"]
+            ev["sim_time"] = idx
+
         with open(self.final_json_path, "w") as f:
-            json.dump(array, f, indent=4)
+            json.dump(ordered, f, indent=4)
 
 
 def build_standard_event(
@@ -93,7 +145,8 @@ def build_standard_event(
 
     event: Dict[str, Any] = {
         "machine": machine,
-        "sim_time_min": sim_time_min,
+        # Emit modern key; logger keeps sequence and removes legacy if present
+        "sim_time": sim_time_min,
         "utc_time": utc_time,
         "batch_id": batch_id if batch_id is not None else 0,
         "start_minute": zero_if_none(start_minute),
