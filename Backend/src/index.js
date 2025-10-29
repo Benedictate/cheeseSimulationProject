@@ -9,11 +9,18 @@ const PORT = process.env.PORT || 3001;
 // --- CORS Setup ---
 const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
   ? process.env.CORS_ALLOWED_ORIGINS.split(",")
-  : []; // split by comma if multiple origins
+  : ["http://localhost:3000", "http://localhost:5001"]; // sensible defaults for local dev/docker
 
 app.use(cors({
- origin: allowedOrigins,
-  credentials: true, // allow cookies/auth headers if needed
+  origin: function (origin, callback) {
+    // allow requests with no origin (like mobile apps, curl)
+    if (!origin) return callback(null, true)
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true)
+    }
+    return callback(null, true) // fallback: allow all in dev
+  },
+  credentials: true,
 }));
 
 // Middleware

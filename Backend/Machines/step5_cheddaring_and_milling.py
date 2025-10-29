@@ -1,14 +1,14 @@
-
-import simpy # Import SimPy for discrete-event simulation
-import math  # Import math for exponential and sigmoid functions
-
+import simpy
+import math
+import json
+import os
 
 class Cheddaring:
-    def __init__(self, env, input, output_store, clock, total_time=180, step=15):
+    def __init__(self, env, input, output_store, clock, total_time=180, step=15, logger=None):
         self.env = env
         self.initial_curd = input
         self.output_store = output_store
-        self.clock = clock
+        self.clock = clock()
         self.moisture_diff = 30
         self.moisture_final = 45
         self.decay_pre = -0.02
@@ -18,7 +18,9 @@ class Cheddaring:
         self.texture_max = 10
         self.total_time = total_time
         self.step = step
-
+        
+        self.observer = []
+        self.logger = logger
 
     #Moisture function 
     def moisture(self, t):
@@ -56,6 +58,30 @@ class Cheddaring:
                 # Calculate texture at time t
                 tx = self.texture(t)
 
+                # Report whole minutes (integer)
+                event = {
+                    'sim_time_min': int(self.env.now),
+                    'utc_time': self.clock.now(),
+                    'time_elapsed_min': t,
+                    'moisture_percent': round(m, 2),
+                    'whey_lost_kg': round(whey_kg, 2),
+                    'texture_score': round(tx, 2),
+                    'milled': milled,
+                    'machine': 'cheddaring_and_milling'
+                }
+                self.observer.append(event)
+                if self.logger:
+                    from helpers.ndjson_logger import build_standard_event
+                    self.logger.log_event(
+                        build_standard_event(
+                            machine='cheddaring_and_milling',
+                            sim_time_min=event['sim_time_min'],
+                            utc_time=event['utc_time'],
+                            output_moisture_percent=event['moisture_percent'],
+                            extra={'whey_lost_kg': event['whey_lost_kg'], 'texture_score': event['texture_score'], 'milled': milled},
+                        )
+                    )
+
                 # Print one row of the table
                 print(f"{t:<12} {m:<15.2f} {whey_kg:<20.2f} {tx:<18.2f} {milled}")
 
@@ -63,8 +89,18 @@ class Cheddaring:
                 yield self.env.timeout(self.step)
                 yield self.output_store.put(batch)
 
+    def save_observations_to_json(self, filename='Backend/data/cheddaring_and_milling_data.json'):
+        folder = os.path.dirname(filename)
+        if folder:
+            os.makedirs(folder, exist_ok=True)
+
+        with open(filename, 'w') as f:
+            json.dump(self.observer, f, indent=4)
+
+        print(f"Observations saved to {filename}")
+
     @staticmethod
-    def run(env, input, output_store, clock,  total_time=180, step=15):
-        machine = Cheddaring(env, input, output_store, clock, total_time, step)
+    def run(env, input, output_store, clock, total_time=180, step=15, logger=None):
+        machine = Cheddaring(env, input, output_store, clock, total_time, step, logger)
         env.process(machine.process())
         return machine

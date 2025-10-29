@@ -1,138 +1,68 @@
-const express = require("express");
-const { spawn } = require("child_process");
-const { startSim, stopSim, getSimState } = require("./pythonHandler");
-const router = express.Router();
+const express = require("express")
+const { spawn } = require("child_process")
+const path = require("path")
+const router = express.Router()
 
-/**
- * Utility function to call Python sim and return a promise
- */
-function runPythonSim(inputData) {
-  return new Promise((resolve, reject) => {
-    const py = spawn("python3", ["Main.py"]); // Adjust path if main.py is elsewhere
-
-    let output = "";
-    let errorOutput = "";
-
-    py.stdout.on("data", (data) => {
-      output += data.toString();
-    });
-
-    py.stderr.on("data", (data) => {
-      errorOutput += data.toString();
-    });
-
-    py.on("close", (code) => {
-      if (code !== 0) {
-        reject(
-          new Error(`Python process exited with code ${code}: ${errorOutput}`)
-        );
-      } else {
-        resolve(output.trim());
-      }
-    });
-
-    // Send JSON to Python stdin
-    py.stdin.write(JSON.stringify(inputData));
-    py.stdin.end();
-  });
-}
-
-// Route 0: Health check route
+// Health check route
 router.get("/health", (req, res) => {
-  res.removeHeader("ETag"); // make sure no ETag is set
-  res.set(
-    "Cache-Control",
-    "no-store, no-cache, must-revalidate, proxy-revalidate"
-  );
-  res.set("Pragma", "no-cache");
-  res.set("Expires", "0");
+  res.removeHeader("ETag")
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
+  res.set("Pragma", "no-cache")
+  res.set("Expires", "0")
 
-  res.status(200).json({ status: "ok" });
-});
+  res.status(200).json({ status: "ok" })
+})
 
 /**
- * Route 1: Single binary value  ---BROKEN---
- * Example: POST body = "1"
- */
-router.post("/quick", express.text(), async (req, res) => {
-  try {
-    const rawInput = req.body;
-
-    // Validate input (must be 0 or 1)
-    if (!["0", "1"].includes(rawInput)) {
-      return res.status(400).json({ error: "Input must be '0' or '1'" });
-    }
-
-    const result = await runPythonSim(rawInput);
-    res.json({ success: true, result });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-/**
- * Route 2: full machine settings JSON
+ * Route: Start simulation with full machine settings JSON
+ * Receives config from frontend form and passes it directly to Main.py via stdin
  */
 router.post("/start-simulation", async (req, res) => {
   try {
-    const result = await startSim(req.body);
-    res.json({ success: true, ...result });
-  } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
-  }
-});
+    const config = req.body
+    console.log("Starting simulation with config from frontend form")
+    console.log("Full config object received from frontend:")
+    console.log(JSON.stringify(config, null, 2)) // pretty print
 
-/**
- * Route 3: End Python process
- */
-router.post("/stop-simulation", async (req, res) => {
-  try {
-    const result = await stopSim();
-    res.json({ success: true, ...result });
-  } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
-  }
-});
+    const py = spawn("python3", ["-u", "Main.py"], {
+      cwd: path.join(__dirname, ".."),
+      env: {
+        ...process.env,
+        PYTHONUNBUFFERED: "1",
+      },
+    })
 
-/**
- * Route 4: Poll simulation status
- */
-router.get("/simulation-status", (req, res) => {
-  res.json({
-    running: getSimState().isRunning,
-  });
-});
+    let errorOutput = ""
 
-const fs = require("fs");
-const path = require("path");
+    py.stdout.on("data", (data) => {
+      process.stdout.write(data.toString())
+    })
 
-router.get("/results", (req, res) => {
-  try {
-    const filePath = path.resolve(
-      "/app/Backend/data/salting_and_mellowing_data.json"
-    );
+    py.stderr.on("data", (data) => {
+      errorOutput += data.toString()
+      console.error("Python error:", data.toString())
+    })
 
-    if (!fs.existsSync(filePath)) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Results file not found" });
+    py.on("close", (code) => {
+      console.log(`Python process exited with code ${code}`)
+    })
+
+    // Send config to Python via stdin
+    if (config && Object.keys(config).length > 0) {
+      py.stdin.write(JSON.stringify(config))
     }
+    py.stdin.end()
 
-    let data = fs.readFileSync(filePath, "utf8").trim();
-
-    // ✅ Ensure valid JSON: wrap raw comma-separated data in brackets
-    if (!data.startsWith("[")) {
-      data = `[${data}`;
-    }
-    if (!data.endsWith("]")) {
-      data = `${data}]`;
-    }
-
-    const parsed = JSON.parse(data);
-    res.json({ success: true, data: parsed });
+    // Don't wait for completion since simulations can be long-running
+    res.json({
+      success: true,
+      message: "Simulation started successfully with form parameters",
+      pid: py.pid,
+    })
   } catch (err) {
-    console.error("❌ Error reading results:", err);
-    res.status(500).json({ success: false, error: err.message });
+    console.error("Simulation error:", err)
+    res.status(500).json({ success: false, error: err.message })
   }
-});
-module.exports = router;
+})
+
+module.exports = router

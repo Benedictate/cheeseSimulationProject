@@ -1,5 +1,9 @@
 import simpy
 import random
+import json
+import os
+from helpers.ndjson_logger import build_standard_event
+from datetime import datetime, timezone
 
 # --- Temperature thresholds (°C) ---
 TEMP_MIN_OPERATING = 68
@@ -21,13 +25,14 @@ TEMP_RANGE_VARIATION = (-2, 2)
 FLOW_RATE = 41.7  # L per step
 
 class Pasteuriser:
-    def __init__(self, env, input_store, output_store, temp_optimal, waste_store, flow_rate=None):
+    def __init__(self, env, input_store, output_store, temp_optimal, waste_store, flow_rate=None, clock=None, logger=None):
         self.env = env
         self.input_store = input_store
         self.output_store = output_store
         self.temp_optimal = temp_optimal
         self.waste_store = waste_store
-        self.flow_rate = flow_rate
+        self.clock = clock() if clock else None
+        self.flow_rate = flow_rate if flow_rate else FLOW_RATE
 
         # Internal state
         self.temperature = self.temp_optimal
@@ -36,6 +41,9 @@ class Pasteuriser:
         self.balance_tank = 0.0
         self.pasteurized_total = 0.0
         self.burnt_total = 0.0
+        
+        self.observer = []
+        self.logger = logger
 
         # Print header once
         print(f"{'Time':<7} {'StartTank':>7} {'BalanceTank':>12} {'Pasteurized':>12} {'Burnt':>7} {'Temp':>7} Status")
@@ -48,6 +56,38 @@ class Pasteuriser:
         return f"{minutes}:{seconds:02d}"
 
     def log_status(self, status):
+        utc_time = self.clock.now() if self.clock else datetime.now(timezone.utc).isoformat()
+        
+        # Convert internal 15-second steps to whole minutes (integer)
+        event = {
+            'sim_time_min': int(self.env.now // STEPS_PER_MIN),
+            'utc_time': utc_time,
+            'start_tank_L': round(self.start_tank, 2),
+            'balance_tank_L': round(self.balance_tank, 2),
+            'pasteurized_total_L': round(self.pasteurized_total, 2),
+            'burnt_total_L': round(self.burnt_total, 2),
+            'temperature_C': round(self.temperature, 2),
+            'status': status,
+            'machine': 'pasteuriser'
+        }
+        self.observer.append(event)
+        if self.logger:
+            self.logger.log_event(
+                build_standard_event(
+                    machine='pasteuriser',
+                    sim_time_min=event['sim_time_min'],
+                    utc_time=event['utc_time'],
+                    milk_L=event['pasteurized_total_L'],
+                    temperature_C=event['temperature_C'],
+                    extra={
+                        'start_tank_L': event['start_tank_L'],
+                        'balance_tank_L': event['balance_tank_L'],
+                        'burnt_total_L': event['burnt_total_L'],
+                        'status': status,
+                    },
+                )
+            )
+        
         print(f"{self.format_time():<7} "
               f"{self.start_tank:>7.2f}        "
               f"{self.balance_tank:>7.2f}        "
@@ -127,8 +167,18 @@ class Pasteuriser:
             self.log_status(status)
             yield self.env.timeout(1)
 
+    def save_observations_to_json(self, filename='Backend/data/pasteuriser.json'):
+        folder = os.path.dirname(filename)
+        if folder:
+            os.makedirs(folder, exist_ok=True)
+
+        with open(filename, 'w') as f:
+            json.dump(self.observer, f, indent=4)
+
+        print(f"Observations saved to {filename}")
+
     @staticmethod
-    def run(env, input_store, output_store, temp_optimal, waste_store, flow_rate=None):
-        machine = Pasteuriser(env, input_store, output_store, temp_optimal, waste_store, flow_rate)
+    def run(env, input_store, output_store, temp_optimal, waste_store, flow_rate=None, clock=None, logger=None):
+        machine = Pasteuriser(env, input_store, output_store, temp_optimal, waste_store, flow_rate, clock, logger)
         env.process(machine.process())
         return machine
