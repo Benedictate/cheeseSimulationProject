@@ -1,5 +1,7 @@
 // pythonHandler.js
 const { spawn } = require("child_process");
+const path = require("path");
+const fs = require("fs");
 
 let simProcess = null;
 let isRunning = false;
@@ -41,6 +43,29 @@ function startSim(inputData) {
       console.log(`✅ Python simulation exited with code ${code}`);
       isRunning = false;
       simProcess = null;
+      
+      // Define where your final JSON is saved (e.g., "Backend/data/data.json")
+      const dataFilePath = path.join(__dirname, "..", "data", "data.json");
+
+      // Wait a moment to ensure Python finishes writing the file
+      setTimeout(() => {
+        try {
+          if (fs.existsSync(dataFilePath)) {
+            const jsonData = JSON.parse(fs.readFileSync(dataFilePath, "utf8"));
+            console.log("📦 Loaded final simulation data file.");
+
+            const { publishMessage } = require("./mqtt");
+
+            // Publish it to your MQTT topic
+            publishMessage("simulation/results", jsonData);
+            console.log("📤 Published final JSON to MQTT topic simulation/results");
+          } else {
+            console.warn("⚠️ Final JSON file not found:", dataFilePath);
+          }
+        } catch (err) {
+          console.error("❌ Error reading or publishing final JSON:", err);
+        }
+      }, 1000); // 1s delay buffer
     });
 
     // send initial data (ensure newline to satisfy readline or full read)
