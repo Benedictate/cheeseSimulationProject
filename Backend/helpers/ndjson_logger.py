@@ -59,6 +59,9 @@ class NdjsonLogger:
             if self.stream:
                 f.flush()
                 os.fsync(f.fileno())
+        
+        if self.stream:
+            print(json.dumps(merged), flush=True)
 
     def finalize_json(self) -> None:
         """Convert NDJSON stream to a JSON array file for convenient reading."""
